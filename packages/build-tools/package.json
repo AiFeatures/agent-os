@@ -29,6 +29,7 @@
 		"readable-stream": "4.7.0",
 		"undici": "^7.24.6",
 		"web-streams-polyfill": "^3.3.3",
+		"whatwg-url": "15.1.0",
 		"ws": "8.21.0"
 	}
 }

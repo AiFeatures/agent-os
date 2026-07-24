@@ -4,6 +4,7 @@ use crate::state::DeferredRpcError;
 const HTTP_LOOPBACK_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 const VM_FETCH_STREAM_CHUNK_MAX_BYTES: usize = 64 * 1024;
 const VM_FETCH_STREAM_COUNT_LIMIT: usize = 256;
+type VmFetchResponseHead = (u16, String, Vec<(String, String)>, VmFetchBodyMode);
 
 fn http_loopback_request_timeout() -> Duration {
     std::env::var(HTTP_LOOPBACK_REQUEST_TIMEOUT_MS_ENV)
@@ -272,7 +273,7 @@ fn parse_stream_response_head(
     bytes: &[u8],
     request_method: &str,
     max_response_bytes: usize,
-) -> Result<(u16, String, Vec<(String, String)>, VmFetchBodyMode), SidecarError> {
+) -> Result<VmFetchResponseHead, SidecarError> {
     let text = std::str::from_utf8(bytes).map_err(|error| {
         SidecarError::Execution(format!(
             "ERR_AGENTOS_VM_FETCH_INVALID_RESPONSE: response headers were not UTF-8: {error}"

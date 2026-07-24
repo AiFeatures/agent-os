@@ -199,7 +199,7 @@ function decodeUtf8(bytes, fatal, stream, encoding) {
           throw createEncodingInvalidDataError(encoding);
         }
         output.push("\uFFFD");
-        index += 1;
+        index += 2;
         continue;
       }
       codePoint = codePoint << 6 | third & 63;
@@ -211,7 +211,7 @@ function decodeUtf8(bytes, fatal, stream, encoding) {
           throw createEncodingInvalidDataError(encoding);
         }
         output.push("\uFFFD");
-        index += 1;
+        index += 3;
         continue;
       }
       codePoint = codePoint << 6 | fourth & 63;
