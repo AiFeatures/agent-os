@@ -593,8 +593,12 @@ function loadBuiltinModule(request) {
 	const normalized = rejectRestrictedBuiltinRequest(request);
 	switch (normalized) {
 		case "assert":
-		case "assert/strict":
 			return globalThis.__secureExecBuiltinAssertModule;
+		case "assert/strict":
+			return (
+				globalThis.__secureExecBuiltinAssertModule?.strict ??
+				globalThis.__secureExecBuiltinAssertModule
+			);
 		case "async_hooks":
 			return builtinAsyncHooksModule;
 		case "buffer":

@@ -5483,6 +5483,19 @@ fn polyfill_expression(request: &str) -> Option<String> {
 }
 
 fn build_builtin_module_wrapper(module_name: &str) -> String {
+    if matches!(
+        module_name,
+        "assert"
+            | "assert/strict"
+            | "path"
+            | "path/posix"
+            | "path/win32"
+            | "string_decoder"
+            | "url"
+    ) {
+        return build_delegating_builtin_module_wrapper(module_name);
+    }
+
     if module_name == "assert" || module_name == "assert/strict" {
         return String::from(
             r#"class AssertionError extends Error {
@@ -7489,6 +7502,10 @@ export default {
         );
     }
 
+    build_delegating_builtin_module_wrapper(module_name)
+}
+
+fn build_delegating_builtin_module_wrapper(module_name: &str) -> String {
     let default_target = format!(
         "globalThis._requireFrom({}, \"/\")",
         serde_json::to_string(&format!("node:{module_name}"))
@@ -7510,6 +7527,29 @@ export default {
 
 fn builtin_named_exports(module_name: &str) -> &'static [&'static str] {
     match module_name {
+        "assert" | "assert/strict" => &[
+            "AssertionError",
+            "CallTracker",
+            "deepEqual",
+            "deepStrictEqual",
+            "doesNotMatch",
+            "doesNotReject",
+            "doesNotThrow",
+            "equal",
+            "fail",
+            "ifError",
+            "match",
+            "notDeepEqual",
+            "notDeepStrictEqual",
+            "notEqual",
+            "notStrictEqual",
+            "ok",
+            "partialDeepStrictEqual",
+            "rejects",
+            "strict",
+            "strictEqual",
+            "throws",
+        ],
         "async_hooks" => &[
             "AsyncLocalStorage",
             "AsyncResource",
@@ -8039,8 +8079,22 @@ fn builtin_named_exports(module_name: &str) -> &'static [&'static str] {
             "rootCertificates",
         ],
         "stream/promises" => &["finished", "pipeline"],
+        "string_decoder" => &["StringDecoder"],
         "timers/promises" => &["scheduler", "setImmediate", "setInterval", "setTimeout"],
-        "url" => &["URL", "fileURLToPath", "format", "parse", "pathToFileURL"],
+        "url" => &[
+            "URL",
+            "URLSearchParams",
+            "Url",
+            "domainToASCII",
+            "domainToUnicode",
+            "fileURLToPath",
+            "format",
+            "parse",
+            "pathToFileURL",
+            "resolve",
+            "resolveObject",
+            "urlToHttpOptions",
+        ],
         "util" => &[
             "MIMEType",
             "MIMEParams",

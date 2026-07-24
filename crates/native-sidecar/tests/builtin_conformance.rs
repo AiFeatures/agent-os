@@ -3769,6 +3769,16 @@ fn stdlib_polyfill_conformance_matches_host_node() {
         "stdlib-polyfills",
         r#"
 import { createRequire } from "node:module";
+import assertDefault, * as assertModule from "node:assert";
+import strictAssertDefault from "node:assert/strict";
+import pathDefault, * as pathModule from "node:path";
+import pathPosixDefault from "node:path/posix";
+import pathWin32Default from "node:path/win32";
+import stringDecoderDefault, { StringDecoder } from "node:string_decoder";
+import urlDefault, {
+  URL as ImportedURL,
+  URLSearchParams as ImportedURLSearchParams,
+} from "node:url";
 
 const require = createRequire(import.meta.url);
 const assert = require("node:assert");
@@ -3780,6 +3790,22 @@ const stringDecoder = require("node:string_decoder");
 const util = require("node:util");
 const utilTypes = require("node:util/types");
 const zlib = require("node:zlib");
+
+assert.strictEqual(assertDefault, assert);
+assert.strictEqual(assertModule.default, assert);
+assert.strictEqual(strictAssertDefault, require("node:assert/strict"));
+assert.strictEqual(pathDefault, path);
+assert.strictEqual(pathModule.default, path);
+assert.strictEqual(pathPosixDefault, require("node:path/posix"));
+assert.strictEqual(pathWin32Default, require("node:path/win32"));
+assert.strictEqual(stringDecoderDefault, stringDecoder);
+assert.strictEqual(StringDecoder, stringDecoder.StringDecoder);
+assert.strictEqual(urlDefault, require("node:url"));
+assert.strictEqual(ImportedURL, require("node:url").URL);
+assert.strictEqual(
+  ImportedURLSearchParams,
+  require("node:url").URLSearchParams,
+);
 
 assert.deepStrictEqual(path.normalize?.("/alpha/../beta"), "/beta");
 assert.notStrictEqual(1, 2);
