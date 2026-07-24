@@ -3338,16 +3338,23 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const events = require("events");
 const nodeEvents = require("node:events");
+const util = require("node:util");
 
 const emitter = new EventEmitter();
 class DerivedEmitter extends require("events") {}
 const derived = new DerivedEmitter();
 const constructed = new (require("events"))();
+function LegacyEmitter() {
+  events.call(this);
+}
+util.inherits(LegacyEmitter, events);
+const legacy = new LegacyEmitter();
 const seen = [];
 const metaNew = [];
 const metaRemove = [];
 const constructedSeen = [];
 const derivedSeen = [];
+const legacySeen = [];
 const warningEvents = [];
 
 function persistent(value) {
@@ -3422,6 +3429,11 @@ derived.on("tick", (value) => {
 });
 const derivedEmitHandled = derived.emit("tick", "delta");
 
+legacy.on("tick", (value) => {
+  legacySeen.push(`legacy:${value}`);
+});
+const legacyEmitHandled = legacy.emit("tick", "epsilon");
+
 process.on("warning", (warning) => {
   warningEvents.push({
     name: warning.name,
@@ -3460,6 +3472,9 @@ console.log(JSON.stringify({
   derivedInstanceWorks: derived instanceof EventEmitter,
   derivedEmitHandled,
   derivedSeen,
+  legacyInstanceWorks: legacy instanceof EventEmitter,
+  legacyEmitHandled,
+  legacySeen,
   visibleListenersIsArray: Array.isArray(visibleListeners),
   visibleRawListenersIsArray: Array.isArray(visibleRawListeners),
   listenersUnwrapOnce: visibleListeners?.[0] === onceVisible,

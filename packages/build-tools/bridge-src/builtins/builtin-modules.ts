@@ -266,24 +266,11 @@ function ensureBuiltinEventsStdlibModule() {
 		typeof builtinEventsStdlibModule === "function"
 			? builtinEventsStdlibModule
 			: builtinEventsStdlibModule?.EventEmitter;
-	if (typeof builtinEventsConstructor === "function") {
-		Object.assign(
-			builtinEventsConstructor.prototype,
-			eventsModule.EventEmitter.prototype,
-		);
-		Object.assign(
-			eventsModule.EventEmitter,
-			builtinEventsStdlibModule,
-			eventsModule,
-		);
-		builtinEventsStdlibModule = eventsModule.EventEmitter;
-		builtinEventsStdlibModule.EventEmitter = builtinEventsStdlibModule;
-	} else {
-		builtinEventsStdlibModule = {
-			...builtinEventsStdlibModule,
-			...eventsModule,
-		};
-	}
+	builtinEventsStdlibModule =
+		typeof builtinEventsConstructor === "function"
+			? Object.assign(builtinEventsConstructor, eventsModule)
+			: eventsModule;
+	builtinEventsStdlibModule.EventEmitter = builtinEventsStdlibModule;
 	return builtinEventsStdlibModule;
 }
 var builtinPathStdlibModule = cloneStdlibModule(pathStdlibModuleNs);
