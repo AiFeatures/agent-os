@@ -109,6 +109,7 @@ var PatchedCustomEvent = class extends PatchedEvent {
 var PatchedEventTarget = class {
   listeners = /* @__PURE__ */ new Map();
   addEventListener(type, listener, options) {
+    const eventType = String(type);
     const normalized = normalizeAddEventListenerOptions(options);
     if (normalized.signal !== void 0 && !isAbortSignalLike(normalized.signal)) {
       throw new TypeError(
@@ -124,7 +125,7 @@ var PatchedEventTarget = class {
     if (normalized.signal?.aborted) {
       return void 0;
     }
-    const records = this.listeners.get(type) ?? [];
+    const records = this.listeners.get(eventType) ?? [];
     const existing = records.find(
       (record2) => record2.listener === listener && record2.capture === normalized.capture
     );
@@ -141,22 +142,23 @@ var PatchedEventTarget = class {
     };
     if (normalized.signal) {
       record.abortListener = () => {
-        this.removeEventListener(type, listener, normalized.capture);
+        this.removeEventListener(eventType, listener, normalized.capture);
       };
       normalized.signal.addEventListener("abort", record.abortListener, {
         once: true
       });
     }
     records.push(record);
-    this.listeners.set(type, records);
+    this.listeners.set(eventType, records);
     return void 0;
   }
   removeEventListener(type, listener, options) {
     if (listener == null) {
       return;
     }
+    const eventType = String(type);
     const capture = normalizeRemoveEventListenerOptions(options);
-    const records = this.listeners.get(type);
+    const records = this.listeners.get(eventType);
     if (!records) {
       return;
     }
@@ -168,13 +170,13 @@ var PatchedEventTarget = class {
       return !match;
     });
     if (nextRecords.length === 0) {
-      this.listeners.delete(type);
+      this.listeners.delete(eventType);
       return;
     }
-    this.listeners.set(type, nextRecords);
+    this.listeners.set(eventType, nextRecords);
   }
   dispatchEvent(event) {
-    if (typeof event !== "object" || event === null || typeof event.type !== "string") {
+    if (!(event instanceof PatchedEvent)) {
       throw new TypeError("Argument 1 must be an Event");
     }
     const patchedEvent = event;
@@ -191,19 +193,19 @@ var PatchedEventTarget = class {
         this.removeEventListener(patchedEvent.type, record.listener, record.capture);
       }
       patchedEvent._setPassive(record.passive);
-      if (record.kind === "function") {
-        record.listener.call(this, patchedEvent);
-      } else {
-        const handleEvent = record.listener.handleEvent;
-        if (typeof handleEvent === "function") {
-          handleEvent.call(record.listener, patchedEvent);
+      try {
+        if (record.kind === "function") {
+          record.listener.call(this, patchedEvent);
+        } else {
+          const handleEvent = record.listener.handleEvent;
+          if (typeof handleEvent === "function") {
+            handleEvent.call(record.listener, patchedEvent);
+          }
         }
+      } finally {
+        patchedEvent._setPassive(false);
       }
-      patchedEvent._setPassive(false);
       if (patchedEvent._isImmediatePropagationStopped()) {
-        break;
-      }
-      if (patchedEvent._isPropagationStopped()) {
         break;
       }
     }

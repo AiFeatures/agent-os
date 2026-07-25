@@ -3458,6 +3458,51 @@ for (let index = 0; index < 12; index += 1) {
   zeroMaxListenersEmitter.on("disabled-warning-check", () => {});
 }
 
+const domTarget = new EventTarget();
+const domSeen = [];
+const coercedType = { toString: () => "coerced" };
+domTarget.addEventListener(coercedType, () => domSeen.push("coerced"));
+domTarget.dispatchEvent(new Event("coerced"));
+domTarget.addEventListener("propagation", (event) => {
+  domSeen.push("stop");
+  event.stopPropagation();
+});
+domTarget.addEventListener("propagation", () => domSeen.push("after-stop"));
+domTarget.dispatchEvent(new Event("propagation"));
+domTarget.addEventListener("immediate", (event) => {
+  domSeen.push("immediate");
+  event.stopImmediatePropagation();
+});
+domTarget.addEventListener("immediate", () => domSeen.push("after-immediate"));
+domTarget.dispatchEvent(new Event("immediate"));
+const onceReentrant = () => {
+  domSeen.push("once");
+  domTarget.dispatchEvent(new Event("reentrant"));
+};
+domTarget.addEventListener("reentrant", onceReentrant, { once: true });
+domTarget.dispatchEvent(new Event("reentrant"));
+const objectListener = {
+  handleEvent() {
+    domSeen.push(this === objectListener ? "object-this" : "object-wrong-this");
+  },
+};
+domTarget.addEventListener("object", objectListener);
+domTarget.dispatchEvent(new Event("object"));
+const passiveEvent = new Event("passive", { cancelable: true });
+domTarget.addEventListener("passive", (event) => event.preventDefault(), {
+  passive: true,
+});
+const passiveDispatchResult = domTarget.dispatchEvent(passiveEvent);
+const canceledEvent = new Event("cancel", { cancelable: true });
+domTarget.addEventListener("cancel", (event) => event.preventDefault());
+const canceledDispatchResult = domTarget.dispatchEvent(canceledEvent);
+const signalController = new AbortController();
+domTarget.addEventListener("signaled", () => domSeen.push("signaled"), {
+  signal: signalController.signal,
+});
+signalController.abort();
+domTarget.dispatchEvent(new Event("signaled"));
+
 await new Promise((resolve) => setTimeout(resolve, 0));
 
 console.log(JSON.stringify({
@@ -3467,6 +3512,8 @@ console.log(JSON.stringify({
   nodeType: typeof nodeEvents,
   eventEmitterPropEqualsSelf: events.EventEmitter === events,
   nodeEventEmitterPropEqualsSelf: nodeEvents.EventEmitter === nodeEvents,
+  canceledDefaultPrevented: canceledEvent.defaultPrevented,
+  canceledDispatchResult,
   constructedInstanceWorks: constructed instanceof EventEmitter,
   constructedEmitHandled,
   constructedSeen,
@@ -3476,6 +3523,9 @@ console.log(JSON.stringify({
   legacyInstanceWorks: legacy instanceof EventEmitter,
   legacyEmitHandled,
   legacySeen,
+  domSeen,
+  passiveDefaultPrevented: passiveEvent.defaultPrevented,
+  passiveDispatchResult,
   visibleListenersIsArray: Array.isArray(visibleListeners),
   visibleRawListenersIsArray: Array.isArray(visibleRawListeners),
   listenersUnwrapOnce: visibleListeners?.[0] === onceVisible,
