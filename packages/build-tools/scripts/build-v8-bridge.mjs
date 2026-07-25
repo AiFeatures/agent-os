@@ -117,6 +117,18 @@ const customAlias = {
 		"polyfills",
 		"whatwg-url.ts",
 	),
+	"agentos-dom-events-polyfill": path.join(
+		packageRoot,
+		"bridge-src",
+		"polyfills",
+		"dom-events.ts",
+	),
+	"agentos-abort-polyfill": path.join(
+		packageRoot,
+		"bridge-src",
+		"polyfills",
+		"abort.ts",
+	),
 	"whatwg-url": require.resolve("whatwg-url"),
 	stream: path.join(undiciShimDir, "stream.js"),
 	"node:stream": path.join(undiciShimDir, "stream.js"),
@@ -431,7 +443,7 @@ async function buildWebStreamsPrelude() {
 				'  WritableStream,',
 				'  TransformStream,',
 				'} from "web-streams-polyfill";',
-				'import { TextDecoder as AgentOSTextDecoder, TextEncoder2 as AgentOSTextEncoder } from "agentos-text-encoding-polyfill";',
+				'import { TextDecoder as AgentOSTextDecoder, TextDecoderStream as AgentOSTextDecoderStream, TextEncoder2 as AgentOSTextEncoder, TextEncoderStream as AgentOSTextEncoderStream } from "agentos-text-encoding-polyfill";',
 				'import { Blob as AgentOSBlob, File as AgentOSFile } from "agentos-blob-file-polyfill";',
 				'if (typeof globalThis.TextEncoder === "undefined") {',
 				"  globalThis.TextEncoder = AgentOSTextEncoder;",
@@ -448,6 +460,8 @@ async function buildWebStreamsPrelude() {
 				'if (typeof globalThis.TransformStream === "undefined") {',
 				"  globalThis.TransformStream = TransformStream;",
 				"}",
+				"globalThis.TextEncoderStream = AgentOSTextEncoderStream;",
+				"globalThis.TextDecoderStream = AgentOSTextDecoderStream;",
 				"globalThis.Blob = AgentOSBlob;",
 				"globalThis.File = AgentOSFile;",
 				'if (typeof globalThis.URLSearchParams === "undefined") {',
@@ -699,6 +713,43 @@ async function buildUrlPrelude() {
 	return `${urlPreludeResult.outputFiles[0].text}\n`;
 }
 
+async function buildEventAbortPrelude() {
+	const eventAbortPreludeResult = await build({
+		stdin: {
+			contents: [
+				'import { Event, CustomEvent, EventTarget } from "agentos-dom-events-polyfill";',
+				'import { AbortController, AbortSignal } from "agentos-abort-polyfill";',
+				"globalThis.Event = Event;",
+				"globalThis.CustomEvent = CustomEvent;",
+				"globalThis.EventTarget = EventTarget;",
+				"globalThis.AbortSignal = AbortSignal;",
+				"globalThis.AbortController = AbortController;",
+			].join("\n"),
+			resolveDir: bridgeAssetsDir,
+			sourcefile: "v8-bridge-event-abort.entry.js",
+			loader: "js",
+		},
+		bundle: true,
+		write: false,
+		format: "iife",
+		platform: "browser",
+		target: "es2020",
+		minify: true,
+		alias,
+		plugins: createUndiciBuildPlugins(),
+		define: {
+			"process.env.NODE_ENV": '"production"',
+			global: "globalThis",
+		},
+	});
+	if (eventAbortPreludeResult.errors.length > 0) {
+		throw new Error(
+			`Failed to build event/abort prelude: ${eventAbortPreludeResult.errors[0].text}`,
+		);
+	}
+	return `${eventAbortPreludeResult.outputFiles[0].text}\n`;
+}
+
 async function prependBundlePrelude(bundlePath, preludeSource) {
 	const bundleText = await readFile(bundlePath, "utf8");
 	if (bundleText.startsWith(preludeSource)) {
@@ -938,9 +989,10 @@ for (const [name, buildResult] of [
 
 const webStreamsPrelude = await buildWebStreamsPrelude();
 const urlPrelude = await buildUrlPrelude();
+const eventAbortPrelude = await buildEventAbortPrelude();
 await prependBundlePrelude(
 	bridgeTempOutput,
-	`${webStreamsPrelude}${urlPrelude}`,
+	`${webStreamsPrelude}${urlPrelude}${eventAbortPrelude}`,
 );
 await rewriteUndiciRuntimeFeaturesBundle(bridgeTempOutput, { required: true });
 await rewriteUnsupportedUtilTypesBundle(bridgeTempOutput, { required: true });

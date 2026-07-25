@@ -27,9 +27,6 @@ import undiciResponseModule from "undici/lib/web/fetch/response.js";
 import undiciWebidlModule from "undici/lib/web/webidl/index.js";
 import loadWebSocketModule from "./undici-shims/websocket-lazy.js";
 
-const NativeAbortControllerGlobal = globalThis.AbortController;
-const NativeAbortSignalGlobal = globalThis.AbortSignal;
-
 const EarlyBufferGlobal =
   bufferStdlibModuleNs.Buffer ??
   bufferStdlibModuleNs.default?.Buffer ??
@@ -220,8 +217,6 @@ if (EarlyUtilTypes && typeof EarlyUtilTypes.isProxy !== "function") {
 export {
   EarlyBufferGlobal,
   EarlyUtilTypes,
-  NativeAbortControllerGlobal,
-  NativeAbortSignalGlobal,
   StructuredCloneTypedArrayCtors,
   WebReadableStream,
   WebTextDecoderStream,

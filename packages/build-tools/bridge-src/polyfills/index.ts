@@ -1,7 +1,11 @@
 import { WebReadableStream, WebTextDecoderStream, WebTextEncoderStream, WebTransformStream, WebWritableStream, sandboxStructuredClone, undiciWebidlModule } from "../prelude.js";
-import { CustomEvent, Event, EventTarget } from "./dom-events.js";
-import { AbortController, AbortSignal } from "./abort.js";
 import { TextDecoder, TextEncoder2 } from "./text-encoding.js";
+
+const Event = globalThis.Event;
+const CustomEvent = globalThis.CustomEvent;
+const EventTarget = globalThis.EventTarget;
+const AbortSignal = globalThis.AbortSignal;
+const AbortController = globalThis.AbortController;
 
 function defineGlobal(name, value) {
   globalThis[name] = value;
@@ -77,35 +81,6 @@ if (typeof WebTextDecoderStream === "function") {
   defineGlobal("TextDecoderStream", WebTextDecoderStream);
 }
 const undiciWebidl = undiciWebidlModule?.webidl ?? undiciWebidlModule;
-if (undiciWebidl?.is) {
-  undiciWebidl.is.ReadableStream = (value) =>
-    value != null &&
-    (value instanceof globalThis.ReadableStream ||
-      typeof value.getReader === "function");
-  undiciWebidl.is.AbortSignal = (value) =>
-    value != null &&
-    (value instanceof globalThis.AbortSignal ||
-      (typeof value.aborted === "boolean" &&
-        typeof value.addEventListener === "function"));
-}
-if (undiciWebidl?.converters?.AbortSignal) {
-  undiciWebidl.converters.AbortSignal = (value, ...args) => {
-    if (
-      value != null &&
-      (value instanceof globalThis.AbortSignal ||
-        (typeof value.aborted === "boolean" &&
-          typeof value.addEventListener === "function"))
-    ) {
-      return value;
-    }
-    return undiciWebidl.interfaceConverter(
-      undiciWebidl.is.AbortSignal,
-      "AbortSignal"
-    )(value, ...args);
-  };
-}
 
 export { defineGlobal, TextEncoder2, TextDecoder, Event, CustomEvent, EventTarget, AbortSignal, AbortController, undiciWebidl };
 export { withCode, createEncodingNotSupportedError, createEncodingInvalidDataError, createInvalidDecodeInputError, trimAsciiWhitespace, normalizeEncodingLabel, toUint8Array, PatchedTextEncoder, PatchedTextDecoder } from "./text-encoding.js";
-export { normalizeAddEventListenerOptions, normalizeRemoveEventListenerOptions, isAbortSignalLike, PatchedEvent, PatchedCustomEvent, PatchedEventTarget } from "./dom-events.js";
-export { ensureNamedConstructor, createAbortSignalReason, createAbortedSignal, normalizeAbortSignalTimeout } from "./abort.js";

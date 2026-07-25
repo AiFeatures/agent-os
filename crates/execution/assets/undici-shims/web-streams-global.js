@@ -1,29 +1,21 @@
 "use strict";
 
-import {
-	ReadableStream as WebReadableStream,
-	WritableStream as WebWritableStream,
-	TransformStream as WebTransformStream,
-} from "web-streams-polyfill";
-import {
-	TextDecoderStream as WebTextDecoderStream,
-	TextEncoderStream as WebTextEncoderStream,
-} from "agentos-text-encoding-polyfill";
+const WebReadableStream = globalThis.ReadableStream;
+const WebWritableStream = globalThis.WritableStream;
+const WebTransformStream = globalThis.TransformStream;
+const WebTextEncoderStream = globalThis.TextEncoderStream;
+const WebTextDecoderStream = globalThis.TextDecoderStream;
 
-if (typeof globalThis.ReadableStream === "undefined") {
-	globalThis.ReadableStream = WebReadableStream;
-}
-if (typeof globalThis.WritableStream === "undefined") {
-	globalThis.WritableStream = WebWritableStream;
-}
-if (typeof globalThis.TransformStream === "undefined") {
-	globalThis.TransformStream = WebTransformStream;
-}
-if (typeof globalThis.TextEncoderStream === "undefined") {
-	globalThis.TextEncoderStream = WebTextEncoderStream;
-}
-if (typeof globalThis.TextDecoderStream === "undefined") {
-	globalThis.TextDecoderStream = WebTextDecoderStream;
+for (const [name, constructor] of Object.entries({
+	ReadableStream: WebReadableStream,
+	WritableStream: WebWritableStream,
+	TransformStream: WebTransformStream,
+	TextEncoderStream: WebTextEncoderStream,
+	TextDecoderStream: WebTextDecoderStream,
+})) {
+	if (typeof constructor !== "function") {
+		throw new Error(`${name} was not installed by the web-platform bootstrap`);
+	}
 }
 
 export {

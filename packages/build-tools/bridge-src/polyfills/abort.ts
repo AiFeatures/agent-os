@@ -1,5 +1,7 @@
-import { NativeAbortControllerGlobal, NativeAbortSignalGlobal } from "../prelude.js";
 import { Event, EventTarget } from "./dom-events.js";
+
+const NativeAbortControllerGlobal = globalThis.AbortController;
+const NativeAbortSignalGlobal = globalThis.AbortSignal;
 
 const hasNativeAbortGlobals =
   typeof NativeAbortSignalGlobal === "function" &&
