@@ -3460,6 +3460,8 @@ for (let index = 0; index < 12; index += 1) {
 }
 
 const domTarget = new EventTarget();
+events.setMaxListeners(23, domTarget);
+const domMaxListeners = events.getMaxListeners(domTarget);
 const domSeen = [];
 const coercedType = { toString: () => "coerced" };
 domTarget.addEventListener(coercedType, () => domSeen.push("coerced"));
@@ -3503,6 +3505,25 @@ domTarget.addEventListener("signaled", () => domSeen.push("signaled"), {
 });
 signalController.abort();
 domTarget.dispatchEvent(new Event("signaled"));
+let eventSymbolErrorName = null;
+try {
+  new Event(Symbol("event"));
+} catch (error) {
+  eventSymbolErrorName = error?.name ?? null;
+}
+let listenerSymbolErrorName = null;
+try {
+  domTarget.addEventListener(Symbol("event"), () => {});
+} catch (error) {
+  listenerSymbolErrorName = error?.name ?? null;
+}
+let eventTypeReadonly = false;
+const readonlyEvent = new Event("readonly");
+try {
+  readonlyEvent.type = "changed";
+} catch (error) {
+  eventTypeReadonly = error instanceof TypeError;
+}
 
 const defaultAbortController = new AbortController();
 let defaultAbortEvents = 0;
@@ -3555,15 +3576,39 @@ try {
   invalidAnyRejected = error instanceof TypeError;
 }
 const emptyAnySignal = AbortSignal.any([]);
+let illegalAbortSignalCode = null;
+try {
+  new AbortSignal();
+} catch (error) {
+  illegalAbortSignalCode = error?.code ?? null;
+}
+let abortStateReadonly = false;
+try {
+  defaultAbortController.signal.aborted = false;
+} catch (error) {
+  abortStateReadonly = error instanceof TypeError;
+}
+let fractionalTimeoutCode = null;
+try {
+  AbortSignal.timeout(1.5);
+} catch (error) {
+  fractionalTimeoutCode = error?.code ?? null;
+}
 
 await new Promise((resolve) => setTimeout(resolve, 0));
 
 console.log(JSON.stringify({
+  abortStateReadonly,
   anyReason: anySignal.reason,
   defaultAbortEvents,
   defaultAbortReasonName: defaultAbortController.signal.reason.name,
   emptyAnyAborted: emptyAnySignal.aborted,
+  eventSymbolErrorName,
+  eventTypeReadonly,
+  fractionalTimeoutCode,
+  illegalAbortSignalCode,
   invalidAnyRejected,
+  listenerSymbolErrorName,
   onabortCount,
   primitiveThrowExact,
   staticAbortReasonName: AbortSignal.abort().reason.name,
@@ -3582,6 +3627,7 @@ console.log(JSON.stringify({
   derivedInstanceWorks: derived instanceof EventEmitter,
   derivedEmitHandled,
   derivedSeen,
+  domMaxListeners,
   legacyInstanceWorks: legacy instanceof EventEmitter,
   legacyEmitHandled,
   legacySeen,
@@ -3870,6 +3916,18 @@ const describeFileUrlError = (callback) => {
 const encodedFileUrl = urlModule.pathToFileURL("/tmp/a #?%/ü/");
 const decodedFilePath = urlModule.fileURLToPath(encodedFileUrl);
 const localhostFilePath = urlModule.fileURLToPath("file://localhost/tmp/a%20b");
+const windowsFilePath = urlModule.fileURLToPath(
+  "file:///C:/Users/a%20b",
+  { windows: true },
+);
+const windowsUncPath = urlModule.fileURLToPath(
+  "file://server/share/a",
+  { windows: true },
+);
+const windowsFileUrl = urlModule.pathToFileURL(
+  "C:\\Users\\a #?b",
+  { windows: true },
+);
 
 console.log(JSON.stringify({
   href: url.href,
@@ -3886,6 +3944,9 @@ console.log(JSON.stringify({
   encodedFileUrl: encodedFileUrl.href,
   decodedFilePath,
   localhostFilePath,
+  windowsFilePath,
+  windowsFileUrl: windowsFileUrl.href,
+  windowsUncPath,
   encodedSlashError: describeFileUrlError(() =>
     urlModule.fileURLToPath("file:///tmp/a%2Fb")
   ),
@@ -3894,6 +3955,9 @@ console.log(JSON.stringify({
   ),
   invalidFileUrlTypeError: describeFileUrlError(() =>
     urlModule.fileURLToPath({})
+  ),
+  invalidUrlError: describeFileUrlError(() =>
+    urlModule.fileURLToPath("not a url")
   ),
   invalidSchemeError: describeFileUrlError(() =>
     urlModule.fileURLToPath("https://example.com/a")
@@ -4036,6 +4100,23 @@ try {
 } catch (error) {
   unsupportedEncodingCode = error?.code ?? null;
 }
+let symbolEncodingErrorName = null;
+try {
+  new TextDecoder(Symbol("utf-8"));
+} catch (error) {
+  symbolEncodingErrorName = error?.name ?? null;
+}
+const streamGetterError = new TypeError("stream getter");
+let streamGetterPreserved = false;
+try {
+  new TextDecoder("utf-8", { fatal: true }).decode(new Uint8Array(), {
+    get stream() {
+      throw streamGetterError;
+    },
+  });
+} catch (error) {
+  streamGetterPreserved = error === streamGetterError;
+}
 
 const deflated = zlib.deflateSync(Buffer.from("secure-exec", "utf8"));
 const inflated = zlib.inflateSync(deflated).toString("utf8");
@@ -4070,6 +4151,8 @@ console.log(JSON.stringify({
   querystringStringified: querystring.stringify({ a: 1, b: ["x", "y"] }),
   rejectsCode,
   streamingDecoded,
+  streamGetterPreserved,
+  symbolEncodingErrorName,
   throwsCode,
   unsupportedEncodingCode,
   utf16BeDecoded,
@@ -4214,15 +4297,18 @@ const richBlob = new Blob(
   { type: "IMAGE/PNG" },
 );
 const richBlobStreamChunks = await readAll(richBlob.stream());
+const richBlobSlice = richBlob.slice(0, 2, "IMAGE/PNG");
 const richFile = new File(
   [richBlob],
   "pixel-\u{1f600}.png",
   { type: "image/png", lastModified: 1700000000123 },
 );
 const responseBlob = await new Response(richBlob).blob();
+const responseSliceBlob = await new Response(richBlobSlice).blob();
 const richFormData = new FormData();
 richFormData.append("caption", "pixel");
 richFormData.append("asset", richFile);
+richFormData.append("slice", richBlobSlice);
 const formDataFile = richFormData.get("asset");
 const multipartRequest = new Request("https://example.com/upload", {
   method: "POST",
@@ -4236,6 +4322,27 @@ const fetchedBlobUrlResponse = await fetch(blobUrl);
 const fetchedBlobUrlBytes = Array.from(
   new Uint8Array(await fetchedBlobUrlResponse.arrayBuffer()),
 );
+const rangedBlobUrlResponse = await fetch(blobUrl, {
+  headers: { Range: "bytes=1-3" },
+});
+const rangedBlobUrlText = await rangedBlobUrlResponse.text();
+const resolvedBlobFromUrl = resolveObjectURL(new URL(blobUrl));
+let blobHeadRejected = false;
+try {
+  await fetch(blobUrl, { method: "HEAD" });
+} catch {
+  blobHeadRejected = true;
+}
+const abortedBlobFetchController = new AbortController();
+abortedBlobFetchController.abort();
+let abortedBlobFetchRejected = false;
+try {
+  await fetch(blobUrl, { signal: abortedBlobFetchController.signal });
+} catch {
+  abortedBlobFetchRejected = true;
+}
+const coercionBlobUrl = URL.createObjectURL(richBlob);
+URL.revokeObjectURL(new URL(coercionBlobUrl));
 URL.revokeObjectURL(blobUrl);
 let revokedBlobUrlRejected = false;
 try {
@@ -4251,6 +4358,8 @@ console.log(JSON.stringify({
   byobDone: byobResult.done,
   byobPullCount,
   cancellationReason,
+  abortedBlobFetchRejected,
+  blobHeadRejected,
   constructorsShared:
     ImportedReadableStream === ReadableStream &&
     ImportedWritableStream === WritableStream &&
@@ -4268,6 +4377,8 @@ console.log(JSON.stringify({
   richBlobBytes: Array.from(new Uint8Array(await richBlob.arrayBuffer())),
   richBlobSize: richBlob.size,
   richBlobSliceText: await richBlob.slice(1, 3).text(),
+  richBlobSliceShared: richBlobSlice instanceof Blob,
+  richBlobSliceType: richBlobSlice.type,
   richBlobStreamBytes: richBlobStreamChunks.flatMap((chunk) => Array.from(chunk)),
   richBlobStreamShared: richBlob.stream() instanceof ReadableStream,
   richBlobType: richBlob.type,
@@ -4276,16 +4387,31 @@ console.log(JSON.stringify({
   richFileSize: richFile.size,
   richFileType: richFile.type,
   resolvedBlobBytes: Array.from(new Uint8Array(await resolvedBlob.arrayBuffer())),
+  resolvedBlobFromUrl:
+    resolvedBlobFromUrl?.size === richBlob.size &&
+    resolvedBlobFromUrl?.type === richBlob.type,
+  revokedCoercionBlobUrl:
+    resolveObjectURL(coercionBlobUrl) === undefined,
   resolvedBlobType: resolvedBlob.type,
   revokedBlobUrlRejected,
   revokedBlobUrlResolvesUndefined: resolveObjectURL(blobUrl) === undefined,
   fetchedBlobUrlBytes,
   fetchedBlobUrlContentType:
     fetchedBlobUrlResponse.headers.get("content-type"),
+  fetchedBlobUrlLength:
+    fetchedBlobUrlResponse.headers.get("content-length"),
+  fetchedBlobUrlStatusText: fetchedBlobUrlResponse.statusText,
+  fetchedBlobUrlType: fetchedBlobUrlResponse.type,
+  fetchedBlobUrlUrlMatches: fetchedBlobUrlResponse.url === blobUrl,
+  rangedBlobUrlContentRange:
+    rangedBlobUrlResponse.headers.get("content-range"),
+  rangedBlobUrlStatus: rangedBlobUrlResponse.status,
+  rangedBlobUrlText,
   responseBodyShared: new Response("ok").body instanceof ReadableStream,
   responseBlobBytes: Array.from(new Uint8Array(await responseBlob.arrayBuffer())),
   responseBlobInstance: responseBlob instanceof Blob,
   responseBlobType: responseBlob.type,
+  responseSliceBlobType: responseSliceBlob.type,
   encodedStreamBytes,
   formDataEntries: Array.from(richFormData, ([name, value]) => [
     name,

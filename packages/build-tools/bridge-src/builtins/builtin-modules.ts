@@ -1,6 +1,6 @@
+import upstreamUrlHelpersModule from "agentos-node-url-polyfill";
 import { exposeCustomGlobal } from "../global-exposure.js";
 import { TextDecoder } from "../polyfills/index.js";
-import upstreamUrlHelpersModule from "agentos-node-url-polyfill";
 import {
 	bufferStdlibModuleNs,
 	constantsStdlibModuleNs,
@@ -187,9 +187,9 @@ function bufferIsUtf8(input) {
 			continue;
 		}
 
-		let continuationCount;
-		let minimumCodePoint;
-		let codePoint;
+		let continuationCount = 0;
+		let minimumCodePoint = 0;
+		let codePoint = 0;
 		if (first >= 0xc2 && first <= 0xdf) {
 			continuationCount = 1;
 			minimumCodePoint = 0x80;
@@ -252,7 +252,11 @@ defineMissingModuleProperty(
 );
 defineMissingModuleProperty(builtinBufferStdlibModule, "Blob", globalThis.Blob);
 defineMissingModuleProperty(builtinBufferStdlibModule, "File", globalThis.File);
-defineMissingModuleProperty(builtinBufferStdlibModule, "isAscii", bufferIsAscii);
+defineMissingModuleProperty(
+	builtinBufferStdlibModule,
+	"isAscii",
+	bufferIsAscii,
+);
 defineMissingModuleProperty(builtinBufferStdlibModule, "isUtf8", bufferIsUtf8);
 defineMissingModuleProperty(
 	builtinBufferStdlibModule,
@@ -537,12 +541,35 @@ function withNodeErrorCode(error, code) {
 	return error;
 }
 
-function pathToFileURL2(filePath) {
+function pathToFileURL2(filePath, options) {
 	if (typeof filePath !== "string") {
 		throw withNodeErrorCode(
 			new TypeError('The "path" argument must be of type string.'),
 			"ERR_INVALID_ARG_TYPE",
 		);
+	}
+	if (options?.windows) {
+		const windowsPath = filePath.replace(/\//g, "\\");
+		let result = new URL2("file:///");
+		if (windowsPath.startsWith("\\\\")) {
+			const [host, ...segments] = windowsPath.slice(2).split("\\");
+			result = new URL2("file:///");
+			result.hostname = host;
+			result.pathname = `/${segments.join("/")}`;
+		} else if (/^[A-Za-z]:\\/.test(windowsPath)) {
+			result = new URL2("file:///");
+			result.pathname = `/${windowsPath.replace(/\\/g, "/")}`;
+		} else {
+			const relative = windowsPath.replace(/\\/g, "/");
+			const trailingSlash = filePath.endsWith("\\") || filePath.endsWith("/");
+			let resolved = builtinPathStdlibModule.posix.resolve(
+				process_default.cwd(),
+				relative,
+			);
+			if (trailingSlash && !resolved.endsWith("/")) resolved += "/";
+			return upstreamUrlStdlibModule.pathToFileURL(resolved);
+		}
+		return result;
 	}
 	let resolved = builtinPathStdlibModule.posix.resolve(
 		process_default.cwd(),
@@ -554,7 +581,7 @@ function pathToFileURL2(filePath) {
 	return upstreamUrlStdlibModule.pathToFileURL(resolved);
 }
 
-function fileURLToPath2(input) {
+function fileURLToPath2(input, options) {
 	if (!(input instanceof URL2) && typeof input !== "string") {
 		throw withNodeErrorCode(
 			new TypeError(
@@ -564,8 +591,37 @@ function fileURLToPath2(input) {
 		);
 	}
 	try {
+		if (options?.windows) {
+			const parsed = input instanceof URL2 ? input : new URL2(input);
+			if (parsed.protocol !== "file:") {
+				throw withNodeErrorCode(
+					new TypeError("The URL must be of scheme file"),
+					"ERR_INVALID_URL_SCHEME",
+				);
+			}
+			if (/%2f|%5c/i.test(parsed.pathname)) {
+				throw withNodeErrorCode(
+					new TypeError(
+						"File URL path must not include encoded / or \\ characters",
+					),
+					"ERR_INVALID_FILE_URL_PATH",
+				);
+			}
+			const pathname = decodeURIComponent(parsed.pathname);
+			if (parsed.hostname) {
+				return `\\\\${parsed.hostname}${pathname.replace(/\//g, "\\")}`;
+			}
+			if (!/^\/[A-Za-z]:/.test(pathname)) {
+				throw withNodeErrorCode(
+					new TypeError("File URL path must be absolute"),
+					"ERR_INVALID_FILE_URL_PATH",
+				);
+			}
+			return pathname.slice(1).replace(/\//g, "\\");
+		}
 		return upstreamUrlStdlibModule.fileURLToPath(input);
 	} catch (error) {
+		if (error?.code) throw error;
 		const message = String(error?.message ?? error);
 		if (message.includes("scheme file")) {
 			throw withNodeErrorCode(error, "ERR_INVALID_URL_SCHEME");
@@ -579,6 +635,9 @@ function fileURLToPath2(input) {
 			message.includes("must not include encoded")
 		) {
 			throw withNodeErrorCode(error, "ERR_INVALID_FILE_URL_PATH");
+		}
+		if (message.includes("Invalid URL")) {
+			throw withNodeErrorCode(error, "ERR_INVALID_URL");
 		}
 		throw error;
 	}
@@ -971,7 +1030,11 @@ function loadBuiltinModule(request) {
 // Node 20.16+ exposes the same permission-gated builtin resolver on process.
 // Install it on the shared process object so ESM dependencies can use it before
 // an entrypoint-specific CommonJS `require` has been created.
-defineMissingModuleProperty(process_default, "getBuiltinModule", loadBuiltinModule);
+defineMissingModuleProperty(
+	process_default,
+	"getBuiltinModule",
+	loadBuiltinModule,
+);
 
 export {
 	__jsRuntimeBuiltinAllowlist,

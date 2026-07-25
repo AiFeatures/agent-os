@@ -31,7 +31,7 @@ function nextBlobUrlId() {
 }
 
 function resolveObjectURL(url) {
-	return typeof url === "string" ? getBlobUrlStore().get(url) : undefined;
+	return getBlobUrlStore().get(typeof url === "string" ? url : `${url}`);
 }
 
 const URL2 = globalThis.URL;

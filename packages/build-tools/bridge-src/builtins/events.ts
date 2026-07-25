@@ -76,6 +76,17 @@ if (!EventEmitter.__agentOSEventsWarningPatched) {
 }
 
 const once = eventsStdlibModuleNs.once ?? EventEmitter.once;
+const eventTargetMaxListeners = new WeakMap();
+
+function isEventTargetLike(emitter) {
+	return (
+		emitter !== null &&
+		(typeof emitter === "object" || typeof emitter === "function") &&
+		typeof emitter.addEventListener === "function" &&
+		typeof emitter.removeEventListener === "function" &&
+		typeof emitter.dispatchEvent === "function"
+	);
+}
 
 function getEventListeners(emitter, eventName) {
 	if (typeof emitter?.listeners === "function") {
@@ -88,6 +99,11 @@ function getMaxListeners(emitter) {
 	if (typeof emitter?.getMaxListeners === "function") {
 		return emitter.getMaxListeners();
 	}
+	if (isEventTargetLike(emitter)) {
+		return (
+			eventTargetMaxListeners.get(emitter) ?? EventEmitter.defaultMaxListeners
+		);
+	}
 	throw new TypeError("The emitter argument must expose getMaxListeners()");
 }
 
@@ -96,11 +112,18 @@ function setMaxListeners(count, ...emitters) {
 		EventEmitter.defaultMaxListeners = count;
 		return;
 	}
+	const validationEmitter = new EventEmitter();
+	validationEmitter.setMaxListeners(count);
 	for (const emitter of emitters) {
-		if (typeof emitter?.setMaxListeners !== "function") {
-			throw new TypeError("Each emitter must expose setMaxListeners()");
+		if (typeof emitter?.setMaxListeners === "function") {
+			emitter.setMaxListeners(count);
+		} else if (isEventTargetLike(emitter)) {
+			eventTargetMaxListeners.set(emitter, count);
+		} else {
+			throw new TypeError(
+				'The "eventTargets" argument must be an instance of EventEmitter or EventTarget.',
+			);
 		}
-		emitter.setMaxListeners(count);
 	}
 }
 

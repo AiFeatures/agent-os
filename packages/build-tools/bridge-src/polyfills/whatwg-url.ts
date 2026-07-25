@@ -39,7 +39,7 @@ function nextBlobUrlId() {
 }
 
 function resolveObjectURL(url) {
-	return typeof url === "string" ? getBlobUrlStore().get(url) : undefined;
+	return getBlobUrlStore().get(typeof url === "string" ? url : `${url}`);
 }
 
 const URL2 = UpstreamURL;
@@ -78,9 +78,7 @@ Object.defineProperties(URL2, {
 				throw createMissingArgsError('The "url" argument must be specified');
 			}
 			const [url] = args;
-			if (typeof url === "string") {
-				getBlobUrlStore().delete(url);
-			}
+			getBlobUrlStore().delete(typeof url === "string" ? url : `${url}`);
 		},
 		writable: true,
 		configurable: true,

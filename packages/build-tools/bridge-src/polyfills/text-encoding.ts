@@ -1,6 +1,5 @@
 import {
 	TextDecoder as UpstreamTextDecoder,
-	TextDecoderStream as UpstreamTextDecoderStream,
 	TextEncoder as UpstreamTextEncoder,
 	TextEncoderStream as UpstreamTextEncoderStream,
 } from "@exodus/bytes/encoding-lite.js";
@@ -39,7 +38,7 @@ function trimAsciiWhitespace(value) {
 
 function normalizeEncodingLabel(label) {
 	const normalized = trimAsciiWhitespace(
-		label === void 0 ? "utf-8" : String(label),
+		label === void 0 ? "utf-8" : `${label}`,
 	).toLowerCase();
 	switch (normalized) {
 		case "utf-8":
@@ -98,14 +97,36 @@ class PatchedTextDecoder extends UpstreamTextDecoder {
 	decode(input, options) {
 		const source = toUint8Array(input);
 		const decodeOptions = options == null ? {} : Object(options);
+		const stream = Boolean(decodeOptions.stream);
 		try {
-			return super.decode(source, decodeOptions);
+			return super.decode(source, { stream });
 		} catch (error) {
 			if (this.fatal && error instanceof TypeError) {
 				throw createEncodingInvalidDataError(this.encoding);
 			}
 			throw error;
 		}
+	}
+}
+
+class PatchedTextDecoderStream {
+	constructor(label, options) {
+		const decoder = new PatchedTextDecoder(label, options);
+		const transform = new TransformStream({
+			transform(chunk, controller) {
+				const output = decoder.decode(chunk, { stream: true });
+				if (output) controller.enqueue(output);
+			},
+			flush(controller) {
+				const output = decoder.decode();
+				if (output) controller.enqueue(output);
+			},
+		});
+		this.readable = transform.readable;
+		this.writable = transform.writable;
+		this.encoding = decoder.encoding;
+		this.fatal = decoder.fatal;
+		this.ignoreBOM = decoder.ignoreBOM;
 	}
 }
 
@@ -121,20 +142,20 @@ Object.defineProperty(PatchedTextDecoder, "name", {
 var TextEncoder2 = PatchedTextEncoder;
 var TextDecoder = PatchedTextDecoder;
 var TextEncoderStream = UpstreamTextEncoderStream;
-var TextDecoderStream = UpstreamTextDecoderStream;
+var TextDecoderStream = PatchedTextDecoderStream;
 
 export {
-	withCode,
-	createEncodingNotSupportedError,
 	createEncodingInvalidDataError,
+	createEncodingNotSupportedError,
 	createInvalidDecodeInputError,
-	trimAsciiWhitespace,
 	normalizeEncodingLabel,
-	toUint8Array,
-	PatchedTextEncoder,
 	PatchedTextDecoder,
-	TextEncoder2,
+	PatchedTextEncoder,
 	TextDecoder,
-	TextEncoderStream,
 	TextDecoderStream,
+	TextEncoder2,
+	TextEncoderStream,
+	toUint8Array,
+	trimAsciiWhitespace,
+	withCode,
 };
