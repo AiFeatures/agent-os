@@ -2765,7 +2765,7 @@ importers:
         specifier: 4.7.0
         version: 4.7.0
       undici:
-        specifier: ^7.24.6
+        specifier: 7.24.6
         version: 7.24.6
       web-streams-polyfill:
         specifier: 4.3.0

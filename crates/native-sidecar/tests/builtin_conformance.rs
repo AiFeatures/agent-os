@@ -4189,6 +4189,16 @@ const richFile = new File(
   { type: "image/png", lastModified: 1700000000123 },
 );
 const responseBlob = await new Response(richBlob).blob();
+const richFormData = new FormData();
+richFormData.append("caption", "pixel");
+richFormData.append("asset", richFile);
+const formDataFile = richFormData.get("asset");
+const multipartRequest = new Request("https://example.com/upload", {
+  method: "POST",
+  body: richFormData,
+});
+const multipartContentType = multipartRequest.headers.get("content-type");
+const multipartText = await multipartRequest.text();
 
 console.log(JSON.stringify({
   bufferBlobShared: BufferBlob === Blob,
@@ -4226,6 +4236,18 @@ console.log(JSON.stringify({
   responseBlobInstance: responseBlob instanceof Blob,
   responseBlobType: responseBlob.type,
   encodedStreamBytes,
+  formDataEntries: Array.from(richFormData, ([name, value]) => [
+    name,
+    typeof value === "string" ? value : value.name,
+  ]),
+  formDataFileShared: formDataFile instanceof File,
+  multipartHasCaption: multipartText.includes('name="caption"') &&
+    multipartText.includes("pixel"),
+  multipartHasFile: multipartText.includes('name="asset"') &&
+    multipartText.includes('filename="pixel-😀.png"') &&
+    multipartText.includes("Content-Type: image/png"),
+  multipartHeaderHasBoundary:
+    multipartContentType.startsWith("multipart/form-data; boundary="),
   teeLeftValues,
   teeRightValues,
 }));

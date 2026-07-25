@@ -19,6 +19,7 @@ import undiciApiModule from "undici/lib/api/index.js";
 import undiciAgentModule from "undici/lib/dispatcher/agent.js";
 import undiciClientModule from "undici/lib/dispatcher/client.js";
 import undiciFetchModule from "undici/lib/web/fetch/index.js";
+import undiciFormDataModule from "undici/lib/web/fetch/formdata.js";
 import undiciGlobalModule from "undici/lib/global.js";
 import undiciHeadersModule from "undici/lib/web/fetch/headers.js";
 import undiciRequestModule from "undici/lib/web/fetch/request.js";
@@ -246,6 +247,7 @@ export {
   undiciApiModule,
   undiciClientModule,
   undiciFetchModule,
+  undiciFormDataModule,
   undiciGlobalModule,
   undiciHeadersModule,
   undiciRequestModule,

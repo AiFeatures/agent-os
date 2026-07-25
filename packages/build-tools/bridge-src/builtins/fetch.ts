@@ -1,6 +1,6 @@
 import { getSecureExecUndiciDispatcher, undiciFetch } from "./undici.js";
 import { exposeCustomGlobal, exposeInstallCompatibleHardenedGlobal } from "../global-exposure.js";
-import { undiciHeadersModule, undiciRequestModule, undiciResponseModule } from "../prelude.js";
+import { undiciFormDataModule, undiciHeadersModule, undiciRequestModule, undiciResponseModule } from "../prelude.js";
 import { isFlatHeaderList, onUpgradeSocketEnd } from "./http.js";
 
 // npm 11 requests full registry metadata while resolving manifests. Large,
@@ -20,6 +20,8 @@ var UndiciHeaders = undiciHeadersModule?.Headers ?? undiciHeadersModule?.default
 var UndiciRequest = undiciRequestModule?.Request ?? undiciRequestModule?.default ?? undiciRequestModule;
 
 var UndiciResponse = undiciResponseModule?.Response ?? undiciResponseModule?.default ?? undiciResponseModule;
+
+var UndiciFormData = undiciFormDataModule?.FormData ?? undiciFormDataModule?.default ?? undiciFormDataModule;
 
 function serializeFetchHeaders(headers) {
   if (!headers) {
@@ -280,34 +282,6 @@ exposeInstallCompatibleHardenedGlobal("Blob", Blob);
 var File = globalThis.File;
 exposeInstallCompatibleHardenedGlobal("File", File);
 
-var FormData = globalThis.FormData;
-
-if (typeof FormData === "undefined") {
-  FormData = class FormDataStub {
-    _entries = [];
-    append(name, value) {
-      this._entries.push([name, value]);
-    }
-    get(name) {
-      const entry = this._entries.find(([k]) => k === name);
-      return entry ? entry[1] : null;
-    }
-    getAll(name) {
-      return this._entries.filter(([k]) => k === name).map(([, v]) => v);
-    }
-    has(name) {
-      return this._entries.some(([k]) => k === name);
-    }
-    delete(name) {
-      this._entries = this._entries.filter(([k]) => k !== name);
-    }
-    entries() {
-      return this._entries[Symbol.iterator]();
-    }
-    [Symbol.iterator]() {
-      return this.entries();
-    }
-  };
-}
+var FormData = UndiciFormData;
 exposeInstallCompatibleHardenedGlobal("FormData", FormData);
-export { Blob, File, Headers, MAX_HTTP_BODY_BYTES, MAX_HTTP_REQUEST_HEADERS, MAX_HTTP_REQUEST_HEADER_BYTES, Request, Response, UndiciHeaders, UndiciRequest, UndiciResponse, _fetchHandleCounter, createFetchHeaders, ensureFetchAcceptEncoding, fetch, normalizeFetchRequestInit, serializeFetchHeaders };
+export { Blob, File, FormData, Headers, MAX_HTTP_BODY_BYTES, MAX_HTTP_REQUEST_HEADERS, MAX_HTTP_REQUEST_HEADER_BYTES, Request, Response, UndiciFormData, UndiciHeaders, UndiciRequest, UndiciResponse, _fetchHandleCounter, createFetchHeaders, ensureFetchAcceptEncoding, fetch, normalizeFetchRequestInit, serializeFetchHeaders };
