@@ -275,28 +275,9 @@ exposeInstallCompatibleHardenedGlobal("Request", UndiciRequest);
 exposeInstallCompatibleHardenedGlobal("Response", UndiciResponse);
 
 var Blob = globalThis.Blob;
-
-if (typeof Blob === "undefined") {
-  Blob = class BlobStub {
-  };
-}
 exposeInstallCompatibleHardenedGlobal("Blob", Blob);
 
 var File = globalThis.File;
-
-if (typeof File === "undefined") {
-  File = class FileStub extends Blob {
-    name;
-    lastModified;
-    webkitRelativePath;
-    constructor(parts = [], name = "", options = {}) {
-      super(parts, options);
-      this.name = String(name);
-      this.lastModified = typeof options.lastModified === "number" ? options.lastModified : Date.now();
-      this.webkitRelativePath = "";
-    }
-  };
-}
 exposeInstallCompatibleHardenedGlobal("File", File);
 
 var FormData = globalThis.FormData;

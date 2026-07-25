@@ -4060,6 +4060,10 @@ import {
   WritableStream as ImportedWritableStream,
   TransformStream as ImportedTransformStream,
 } from "node:stream/web";
+import {
+  Blob as BufferBlob,
+  File as BufferFile,
+} from "node:buffer";
 
 const readAll = async (stream) => {
   const values = [];
@@ -4174,7 +4178,21 @@ await decoderWriter.write(new Uint8Array([0xac]));
 await decoderWriter.close();
 const decodedStreamText = (await decodedChunksPromise).join("");
 
+const richBlob = new Blob(
+  ["A", new Uint8Array([0, 255]), "\u{1f600}"],
+  { type: "IMAGE/PNG" },
+);
+const richBlobStreamChunks = await readAll(richBlob.stream());
+const richFile = new File(
+  [richBlob],
+  "pixel-\u{1f600}.png",
+  { type: "image/png", lastModified: 1700000000123 },
+);
+const responseBlob = await new Response(richBlob).blob();
+
 console.log(JSON.stringify({
+  bufferBlobShared: BufferBlob === Blob,
+  bufferFileShared: BufferFile === File,
   byobBytes: Array.from(byobResult.value),
   byobDone: byobResult.done,
   byobPullCount,
@@ -4193,7 +4211,20 @@ console.log(JSON.stringify({
   pipeError,
   pipedValues,
   queuedDesiredSize,
+  richBlobBytes: Array.from(new Uint8Array(await richBlob.arrayBuffer())),
+  richBlobSize: richBlob.size,
+  richBlobSliceText: await richBlob.slice(1, 3).text(),
+  richBlobStreamBytes: richBlobStreamChunks.flatMap((chunk) => Array.from(chunk)),
+  richBlobStreamShared: richBlob.stream() instanceof ReadableStream,
+  richBlobType: richBlob.type,
+  richFileLastModified: richFile.lastModified,
+  richFileName: richFile.name,
+  richFileSize: richFile.size,
+  richFileType: richFile.type,
   responseBodyShared: new Response("ok").body instanceof ReadableStream,
+  responseBlobBytes: Array.from(new Uint8Array(await responseBlob.arrayBuffer())),
+  responseBlobInstance: responseBlob instanceof Blob,
+  responseBlobType: responseBlob.type,
   encodedStreamBytes,
   teeLeftValues,
   teeRightValues,

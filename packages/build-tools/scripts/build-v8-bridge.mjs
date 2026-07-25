@@ -83,12 +83,16 @@ const wsNodeEntry = require.resolve("ws");
 const exodusBytesRoot = path.dirname(
 	require.resolve("@exodus/bytes/encoding-lite.js"),
 );
+const fetchBlobEntry = require.resolve("fetch-blob");
+const fetchBlobFileEntry = require.resolve("fetch-blob/file.js");
 
 const alias = {};
 const customAlias = {
 	"@exodus/bytes/encoding-lite.js": require.resolve(
 		"@exodus/bytes/encoding-lite.js",
 	),
+	"fetch-blob": fetchBlobEntry,
+	"fetch-blob/file.js": fetchBlobFileEntry,
 	url: path.join(undiciShimDir, "url.js"),
 	"node:url": path.join(undiciShimDir, "url.js"),
 	"agentos-legacy-url-polyfill": nodeStdlibUrlPackageEntry,
@@ -97,6 +101,12 @@ const customAlias = {
 		"bridge-src",
 		"polyfills",
 		"text-encoding.ts",
+	),
+	"agentos-blob-file-polyfill": path.join(
+		packageRoot,
+		"bridge-src",
+		"polyfills",
+		"blob-file.ts",
 	),
 	"whatwg-url": require.resolve("whatwg-url"),
 	stream: path.join(undiciShimDir, "stream.js"),
@@ -413,6 +423,7 @@ async function buildWebStreamsPrelude() {
 				'  TransformStream,',
 				'} from "web-streams-polyfill";',
 				'import { TextDecoder as AgentOSTextDecoder, TextEncoder2 as AgentOSTextEncoder } from "agentos-text-encoding-polyfill";',
+				'import { Blob as AgentOSBlob, File as AgentOSFile } from "agentos-blob-file-polyfill";',
 				'if (typeof globalThis.TextEncoder === "undefined") {',
 				"  globalThis.TextEncoder = AgentOSTextEncoder;",
 				"}",
@@ -548,9 +559,7 @@ async function buildWebStreamsPrelude() {
 				"  };",
 				"  globalThis.URL.__secureExecBootstrapStub = true;",
 				"}",
-				'if (typeof globalThis.Blob === "undefined") {',
-				"  globalThis.Blob = class BlobStub {};",
-				"}",
+				"globalThis.Blob = AgentOSBlob;",
 				'if (typeof globalThis.AbortSignal === "undefined") {',
 				"  globalThis.AbortSignal = class AbortSignalStub {",
 				"    aborted = false;",
@@ -590,19 +599,7 @@ async function buildWebStreamsPrelude() {
 				"    }",
 				"  };",
 				"}",
-				'if (typeof globalThis.File === "undefined") {',
-				"  globalThis.File = class FileStub extends Blob {",
-				"    name;",
-				"    lastModified;",
-				"    webkitRelativePath;",
-				'    constructor(parts = [], name = "", options = {}) {',
-				"      super(parts, options);",
-				"      this.name = String(name);",
-				'      this.lastModified = typeof options.lastModified === "number" ? options.lastModified : Date.now();',
-				'      this.webkitRelativePath = "";',
-				"    }",
-				"  };",
-				"}",
+				"globalThis.File = AgentOSFile;",
 				'if (typeof globalThis.FormData === "undefined") {',
 				"  globalThis.FormData = class FormDataStub {",
 				"    _entries = [];",
@@ -751,6 +748,33 @@ function createUndiciBuildPlugins() {
 						loader: "js",
 						resolveDir: exodusBytesRoot,
 					}),
+				);
+			},
+		},
+		{
+			name: "agentos-fetch-blob-preinstalled-streams",
+			setup(build) {
+				build.onLoad(
+					{ filter: /[\\/]fetch-blob[\\/]index\.js$/ },
+					async (args) => {
+						const source = await readFile(args.path, "utf8");
+						const bootstrapStart = source.indexOf(
+							"if (!globalThis.ReadableStream)",
+						);
+						const implementationStart = source.indexOf("// 64 KiB");
+						if (bootstrapStart < 0 || implementationStart < bootstrapStart) {
+							throw new Error(
+								`fetch-blob bootstrap shape changed in ${args.path}`,
+							);
+						}
+						return {
+							contents:
+								source.slice(0, bootstrapStart) +
+								source.slice(implementationStart),
+							loader: "js",
+							resolveDir: path.dirname(args.path),
+						};
+					},
 				);
 			},
 		},
