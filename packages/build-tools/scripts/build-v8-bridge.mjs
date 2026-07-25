@@ -411,7 +411,7 @@ async function buildWebStreamsPrelude() {
 				'  ReadableStream,',
 				'  WritableStream,',
 				'  TransformStream,',
-				'} from "web-streams-polyfill/ponyfill/es2018";',
+				'} from "web-streams-polyfill";',
 				'import { TextDecoder as AgentOSTextDecoder, TextEncoder2 as AgentOSTextEncoder } from "agentos-text-encoding-polyfill";',
 				'if (typeof globalThis.TextEncoder === "undefined") {',
 				"  globalThis.TextEncoder = AgentOSTextEncoder;",
@@ -765,8 +765,7 @@ function createUndiciBuildPlugins() {
 				}));
 				build.onResolve(
 					{
-						filter:
-							/^(undici\/lib\/.+|web-streams-polyfill\/ponyfill\/es2018)$/,
+						filter: /^(undici\/lib\/.+|web-streams-polyfill)$/,
 					},
 					(args) => {
 						const resolvedPath = require.resolve(args.path, {

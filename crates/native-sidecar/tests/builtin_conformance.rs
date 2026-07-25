@@ -71,6 +71,7 @@ const BUILTIN_CONFORMANCE_CASES: &[&str] = &[
     "buffer",
     "url",
     "stdlib_polyfill",
+    "web_streams",
     "extended_builtin_polyfills",
 ];
 
@@ -3937,6 +3938,159 @@ console.log(JSON.stringify({
     );
 }
 
+fn web_streams_conformance_matches_host_node() {
+    assert_conformance(
+        "web-streams",
+        r#"
+import {
+  ReadableStream as ImportedReadableStream,
+  TextDecoderStream as ImportedTextDecoderStream,
+  TextEncoderStream as ImportedTextEncoderStream,
+  WritableStream as ImportedWritableStream,
+  TransformStream as ImportedTransformStream,
+} from "node:stream/web";
+
+const readAll = async (stream) => {
+  const values = [];
+  for await (const value of stream) values.push(value);
+  return values;
+};
+
+let byobPullCount = 0;
+const byteStream = new ReadableStream({
+  type: "bytes",
+  pull(controller) {
+    byobPullCount += 1;
+    const view = controller.byobRequest.view;
+    view[0] = 0x41;
+    view[1] = 0x42;
+    controller.byobRequest.respond(2);
+    controller.close();
+  },
+});
+const byobReader = byteStream.getReader({ mode: "byob" });
+const byobResult = await byobReader.read(new Uint8Array(4));
+byobReader.releaseLock();
+
+const pipedValues = [];
+await new ReadableStream({
+  start(controller) {
+    controller.enqueue(2);
+    controller.enqueue(3);
+    controller.close();
+  },
+})
+  .pipeThrough(new TransformStream({
+    transform(value, controller) {
+      controller.enqueue(value * 10);
+    },
+  }))
+  .pipeTo(new WritableStream({
+    write(value) {
+      pipedValues.push(value);
+    },
+  }));
+
+const [teeLeft, teeRight] = new ReadableStream({
+  start(controller) {
+    controller.enqueue("alpha");
+    controller.enqueue("beta");
+    controller.close();
+  },
+}).tee();
+const [teeLeftValues, teeRightValues] = await Promise.all([
+  readAll(teeLeft),
+  readAll(teeRight),
+]);
+
+let cancellationReason = null;
+const cancellable = new ReadableStream({
+  cancel(reason) {
+    cancellationReason = reason;
+  },
+});
+await cancellable.cancel("stop");
+
+let releaseWrite;
+const pendingWrite = new Promise((resolve) => {
+  releaseWrite = resolve;
+});
+const backpressureStream = new WritableStream({
+  write() {
+    return pendingWrite;
+  },
+}, { highWaterMark: 1 });
+const writer = backpressureStream.getWriter();
+const initialDesiredSize = writer.desiredSize;
+const writePromise = writer.write("chunk");
+const queuedDesiredSize = writer.desiredSize;
+releaseWrite();
+await writePromise;
+const drainedDesiredSize = writer.desiredSize;
+writer.releaseLock();
+
+let pipeError = null;
+try {
+  await new ReadableStream({
+    start(controller) {
+      controller.error(new Error("stream-failure"));
+    },
+  }).pipeTo(new WritableStream());
+} catch (error) {
+  pipeError = error.message;
+}
+
+const lockStream = new ReadableStream();
+const lockReader = lockStream.getReader();
+const lockedWithReader = lockStream.locked;
+lockReader.releaseLock();
+
+const encoderStream = new TextEncoderStream();
+const encodedChunksPromise = readAll(encoderStream.readable);
+const encoderWriter = encoderStream.writable.getWriter();
+await encoderWriter.write("\ud83d");
+await encoderWriter.write("\ude00");
+await encoderWriter.close();
+const encodedStreamBytes = Array.from(
+  (await encodedChunksPromise).flatMap((chunk) => Array.from(chunk)),
+);
+
+const decoderStream = new TextDecoderStream();
+const decodedChunksPromise = readAll(decoderStream.readable);
+const decoderWriter = decoderStream.writable.getWriter();
+await decoderWriter.write(new Uint8Array([0xe2, 0x82]));
+await decoderWriter.write(new Uint8Array([0xac]));
+await decoderWriter.close();
+const decodedStreamText = (await decodedChunksPromise).join("");
+
+console.log(JSON.stringify({
+  byobBytes: Array.from(byobResult.value),
+  byobDone: byobResult.done,
+  byobPullCount,
+  cancellationReason,
+  constructorsShared:
+    ImportedReadableStream === ReadableStream &&
+    ImportedWritableStream === WritableStream &&
+    ImportedTransformStream === TransformStream &&
+    ImportedTextEncoderStream === TextEncoderStream &&
+    ImportedTextDecoderStream === TextDecoderStream,
+  decodedStreamText,
+  drainedDesiredSize,
+  initialDesiredSize,
+  lockedAfterRelease: lockStream.locked,
+  lockedWithReader,
+  pipeError,
+  pipedValues,
+  queuedDesiredSize,
+  responseBodyShared: new Response("ok").body instanceof ReadableStream,
+  encodedStreamBytes,
+  teeLeftValues,
+  teeRightValues,
+}));
+"#,
+    );
+}
+
 fn extended_builtin_polyfills_work_in_guest_v8() {
     let result = run_guest_script(
         "extended-builtins",
@@ -4349,6 +4503,7 @@ fn run_named_case(case_name: &str) {
         "buffer" => buffer_conformance_matches_host_node(),
         "url" => url_conformance_matches_host_node(),
         "stdlib_polyfill" => stdlib_polyfill_conformance_matches_host_node(),
+        "web_streams" => web_streams_conformance_matches_host_node(),
         "extended_builtin_polyfills" => extended_builtin_polyfills_work_in_guest_v8(),
         other => panic!("unknown builtin conformance case: {other}"),
     }

@@ -1,7 +1,6 @@
 import { WebReadableStream, WebTextDecoderStream, WebTextEncoderStream, WebTransformStream, WebWritableStream, sandboxStructuredClone, undiciWebidlModule } from "../prelude.js";
 import { CustomEvent, Event, EventTarget } from "./dom-events.js";
 import { AbortController, AbortSignal } from "./abort.js";
-import { FallbackReadableStream, FallbackWritableStream } from "./web-streams-fallback.js";
 import { TextDecoder, TextEncoder2 } from "./text-encoding.js";
 
 function defineGlobal(name, value) {
@@ -68,11 +67,9 @@ if (
     return globalThis.WebAssembly.instantiate(bytes, imports);
   };
 }
-defineGlobal("ReadableStream", typeof WebReadableStream === "function" ? WebReadableStream : FallbackReadableStream);
-defineGlobal("WritableStream", typeof WebWritableStream === "function" ? WebWritableStream : FallbackWritableStream);
-if (typeof WebTransformStream === "function") {
-  defineGlobal("TransformStream", WebTransformStream);
-}
+defineGlobal("ReadableStream", WebReadableStream);
+defineGlobal("WritableStream", WebWritableStream);
+defineGlobal("TransformStream", WebTransformStream);
 if (typeof WebTextEncoderStream === "function") {
   defineGlobal("TextEncoderStream", WebTextEncoderStream);
 }
@@ -108,7 +105,7 @@ if (undiciWebidl?.converters?.AbortSignal) {
   };
 }
 
-export { defineGlobal, TextEncoder2, TextDecoder, Event, CustomEvent, EventTarget, AbortSignal, AbortController, FallbackWritableStream, FallbackReadableStream, undiciWebidl };
+export { defineGlobal, TextEncoder2, TextDecoder, Event, CustomEvent, EventTarget, AbortSignal, AbortController, undiciWebidl };
 export { withCode, createEncodingNotSupportedError, createEncodingInvalidDataError, createInvalidDecodeInputError, trimAsciiWhitespace, normalizeEncodingLabel, toUint8Array, PatchedTextEncoder, PatchedTextDecoder } from "./text-encoding.js";
 export { normalizeAddEventListenerOptions, normalizeRemoveEventListenerOptions, isAbortSignalLike, PatchedEvent, PatchedCustomEvent, PatchedEventTarget } from "./dom-events.js";
 export { ensureNamedConstructor, createAbortSignalReason, createAbortedSignal, normalizeAbortSignalTimeout } from "./abort.js";
