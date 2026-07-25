@@ -1,19 +1,38 @@
 import { NativeAbortControllerGlobal, NativeAbortSignalGlobal } from "../prelude.js";
 import { Event, EventTarget } from "./dom-events.js";
 
-var AbortSignal = typeof NativeAbortSignalGlobal === "function" ? NativeAbortSignalGlobal : class extends EventTarget {
+const hasNativeAbortGlobals =
+  typeof NativeAbortSignalGlobal === "function" &&
+  NativeAbortSignalGlobal.name === "AbortSignal" &&
+  typeof NativeAbortControllerGlobal === "function" &&
+  NativeAbortControllerGlobal.name === "AbortController";
+
+var AbortSignal = hasNativeAbortGlobals ? NativeAbortSignalGlobal : class extends EventTarget {
   constructor() {
     super();
     this.aborted = false;
     this.reason = void 0;
+    this._onabort = null;
+  }
+  get onabort() {
+    return this._onabort;
+  }
+  set onabort(listener) {
+    if (this._onabort) {
+      this.removeEventListener("abort", this._onabort);
+    }
+    this._onabort = typeof listener === "function" ? listener : null;
+    if (this._onabort) {
+      this.addEventListener("abort", this._onabort);
+    }
   }
   throwIfAborted() {
     if (this.aborted) {
-      throw this.reason instanceof Error ? this.reason : new Error(String(this.reason ?? "AbortError"));
+      throw this.reason;
     }
   }
 };
-var AbortController = typeof NativeAbortControllerGlobal === "function" ? NativeAbortControllerGlobal : class {
+var AbortController = hasNativeAbortGlobals ? NativeAbortControllerGlobal : class {
   constructor() {
     this.signal = new AbortSignal();
   }
@@ -22,7 +41,7 @@ var AbortController = typeof NativeAbortControllerGlobal === "function" ? Native
       return;
     }
     this.signal.aborted = true;
-    this.signal.reason = reason;
+    this.signal.reason = createAbortSignalReason(reason);
     this.signal.dispatchEvent(new Event("abort"));
   }
 };
@@ -66,17 +85,25 @@ function createAbortSignalReason(reason) {
   error.name = "AbortError";
   return error;
 }
+function createAbortSignalTimeoutReason() {
+  if (typeof globalThis.DOMException === "function") {
+    return new globalThis.DOMException("The operation was aborted due to timeout", "TimeoutError");
+  }
+  const error = new Error("The operation was aborted due to timeout");
+  error.name = "TimeoutError";
+  return error;
+}
 function createAbortedSignal(reason) {
   const controller = new AbortController();
-  controller.abort(createAbortSignalReason(reason));
+  controller.abort(reason);
   return controller.signal;
 }
 function normalizeAbortSignalTimeout(delay) {
   if (typeof delay !== "number") {
     throw new TypeError(`The "delay" argument must be of type number. Received ${typeof delay}`);
   }
-  if (!Number.isFinite(delay) || delay < 0) {
-    throw new RangeError(`The value of "delay" is out of range. It must be >= 0. Received ${String(delay)}`);
+  if (!Number.isFinite(delay) || delay < 0 || delay > 4294967295) {
+    throw new RangeError(`The value of "delay" is out of range. It must be >= 0 and <= 4294967295. Received ${String(delay)}`);
   }
   return Math.trunc(delay);
 }
@@ -97,7 +124,7 @@ if (typeof AbortSignal.timeout !== "function") {
       const timeout = normalizeAbortSignalTimeout(delay);
       const controller = new AbortController();
       const timer = setTimeout(() => {
-        controller.abort(createAbortSignalReason());
+        controller.abort(createAbortSignalTimeoutReason());
       }, timeout);
       if (typeof timer?.unref === "function") {
         timer.unref();
@@ -118,6 +145,11 @@ if (typeof AbortSignal.any !== "function") {
         throw new TypeError("The \"signals\" argument must be an iterable");
       }
       const inputs = Array.from(signals);
+      for (const signal of inputs) {
+        if (!(signal instanceof AbortSignal)) {
+          throw new TypeError("The \"signals\" argument must contain AbortSignal instances");
+        }
+      }
       const controller = new AbortController();
       if (inputs.length === 0) {
         return controller.signal;
@@ -131,9 +163,6 @@ if (typeof AbortSignal.any !== "function") {
         controller.abort(signal.reason);
       };
       for (const signal of inputs) {
-        if (!signal || typeof signal.aborted !== "boolean" || typeof signal.addEventListener !== "function") {
-          throw new TypeError("The \"signals\" argument must contain AbortSignal instances");
-        }
         if (signal.aborted) {
           abortFromSignal(signal);
           return controller.signal;
@@ -147,4 +176,4 @@ if (typeof AbortSignal.any !== "function") {
   });
 }
 
-export { AbortSignal, AbortController, ensureNamedConstructor, createAbortSignalReason, createAbortedSignal, normalizeAbortSignalTimeout };
+export { AbortSignal, AbortController, ensureNamedConstructor, createAbortSignalReason, createAbortSignalTimeoutReason, createAbortedSignal, normalizeAbortSignalTimeout };

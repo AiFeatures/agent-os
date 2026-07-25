@@ -3503,9 +3503,70 @@ domTarget.addEventListener("signaled", () => domSeen.push("signaled"), {
 signalController.abort();
 domTarget.dispatchEvent(new Event("signaled"));
 
+const defaultAbortController = new AbortController();
+let defaultAbortEvents = 0;
+defaultAbortController.signal.addEventListener("abort", () => {
+  defaultAbortEvents += 1;
+});
+defaultAbortController.abort();
+defaultAbortController.abort(new Error("ignored"));
+
+const onabortController = new AbortController();
+let onabortCount = 0;
+onabortController.signal.onabort = () => {
+  onabortCount += 1;
+};
+onabortController.signal.onabort = () => {
+  onabortCount += 10;
+};
+onabortController.abort();
+
+const primitiveAbortController = new AbortController();
+primitiveAbortController.abort(17);
+let primitiveThrowExact = false;
+try {
+  primitiveAbortController.signal.throwIfAborted();
+} catch (error) {
+  primitiveThrowExact = error === 17;
+}
+
+const timeoutSignal = AbortSignal.timeout(0);
+await new Promise((resolve) => {
+  const keepAlive = setTimeout(resolve, 50);
+  timeoutSignal.addEventListener("abort", () => {
+    clearTimeout(keepAlive);
+    resolve();
+  }, { once: true });
+});
+
+const anyFirst = new AbortController();
+const anySecond = new AbortController();
+const anySignal = AbortSignal.any([anyFirst.signal, anySecond.signal]);
+anySecond.abort("second-reason");
+let invalidAnyRejected = false;
+try {
+  AbortSignal.any([anyFirst.signal, {
+    aborted: false,
+    addEventListener() {},
+    removeEventListener() {},
+  }]);
+} catch (error) {
+  invalidAnyRejected = error instanceof TypeError;
+}
+const emptyAnySignal = AbortSignal.any([]);
+
 await new Promise((resolve) => setTimeout(resolve, 0));
 
 console.log(JSON.stringify({
+  anyReason: anySignal.reason,
+  defaultAbortEvents,
+  defaultAbortReasonName: defaultAbortController.signal.reason.name,
+  emptyAnyAborted: emptyAnySignal.aborted,
+  invalidAnyRejected,
+  onabortCount,
+  primitiveThrowExact,
+  staticAbortReasonName: AbortSignal.abort().reason.name,
+  timeoutReasonName: timeoutSignal.reason.name,
   bareEqualsNode: events === nodeEvents,
   cjsEqualsEventEmitter: events === EventEmitter,
   bareType: typeof events,
