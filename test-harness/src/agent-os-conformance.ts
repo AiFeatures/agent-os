@@ -1,6 +1,11 @@
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { CONFORMANCE_AGENT_NAME } from "./agent-os-conformance-fixture.js";
 
+const ONE_PIXEL_PNG_BASE64 =
+	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+const SILENT_WAV_BASE64 =
+	"UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+
 export {
 	CONFORMANCE_ACP_ADAPTER,
 	CONFORMANCE_AGENT_NAME,
@@ -599,6 +604,120 @@ export function defineAgentOsConformanceSuite(
 				expect.objectContaining({ sessionId }),
 			);
 			offSession();
+		}, 90_000);
+
+		test("sessions preserve ordered rich media across prompt, events, result, and history", async () => {
+			const sessionId = "conformance-rich-media";
+			const content = [
+				{ type: "text", text: "rich-media:" },
+				{
+					type: "image",
+					data: ONE_PIXEL_PNG_BASE64,
+					mimeType: "image/png",
+					uri: "file:///workspace/pixel.png",
+					annotations: { audience: ["assistant"], priority: 0.9 },
+				},
+				{
+					type: "resource_link",
+					uri: "https://example.test/reference.txt",
+					name: "reference.txt",
+					title: "Reference",
+					mimeType: "text/plain",
+					size: 9,
+					annotations: { audience: ["assistant"] },
+				},
+				{
+					type: "resource",
+					resource: {
+						uri: "file:///workspace/context.txt",
+						mimeType: "text/plain",
+						text: "context ✓",
+					},
+					annotations: { priority: 0.5 },
+				},
+				{
+					type: "resource",
+					resource: {
+						uri: "file:///workspace/pixel-copy.png",
+						mimeType: "image/png",
+						blob: ONE_PIXEL_PNG_BASE64,
+					},
+				},
+				{
+					type: "audio",
+					data: SILENT_WAV_BASE64,
+					mimeType: "audio/wav",
+					annotations: { audience: ["assistant"] },
+				},
+			];
+			const live: any[] = [];
+			const liveTools: any[] = [];
+			const offSession = backend.on("sessionEvent", (event) => {
+				if (event.sessionId !== sessionId) return;
+				if (event.type === "agent_message_chunk") {
+					live.push(event.content);
+				}
+				if (event.type === "tool_call") liveTools.push(event);
+			});
+			try {
+				await backend.call("openSession", {
+					sessionId,
+					agent: CONFORMANCE_AGENT_NAME,
+					skipOsInstructions: true,
+				});
+				expect(
+					await backend.call<any>("getSessionCapabilities", { sessionId }),
+				).toMatchObject({
+					prompt: { image: true, audio: true, embeddedContext: true },
+				});
+
+				const response = await backend.call<any>("prompt", {
+					sessionId,
+					content,
+				});
+				expect(response.message?.content).toEqual(content);
+				await eventually(
+					() => live,
+					(entries) => entries.length >= content.length,
+				);
+				expect(live.slice(0, content.length)).toEqual(content);
+				expect(liveTools).toContainEqual(
+					expect.objectContaining({
+						content: content.slice(1).map((entry) => ({
+							type: "content",
+							content: entry,
+						})),
+					}),
+				);
+
+				const history = await backend.call<any>("readHistory", { sessionId });
+				const userContent = history.events
+					.filter((event: any) => event.type === "user_message_chunk")
+					.map((event: any) => event.content);
+				expect(userContent).toEqual(content);
+				expect(
+					history.events.find((event: any) => event.type === "tool_call")
+						?.content,
+				).toEqual(
+					content.slice(1).map((entry) => ({
+						type: "content",
+						content: entry,
+					})),
+				);
+
+				await backend.call("unloadSession", { sessionId });
+				const restoredHistory = await backend.call<any>("readHistory", {
+					sessionId,
+				});
+				expect(
+					restoredHistory.events
+						.filter((event: any) => event.type === "user_message_chunk")
+						.map((event: any) => event.content),
+				).toEqual(content);
+			} finally {
+				offSession();
+				await backend.call("deleteSession", { sessionId });
+			}
 		}, 90_000);
 
 		test("default permission policy auto-resolves without durable or live permission events", async () => {

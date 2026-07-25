@@ -47,12 +47,12 @@ async function withAdapter(codexHome, run) {
 		ndJsonStream(Writable.toWeb(child.stdin), Readable.toWeb(child.stdout)),
 	);
 	try {
-		await connection.initialize({
+		const initialization = await connection.initialize({
 			protocolVersion: PROTOCOL_VERSION,
 			clientCapabilities: {},
 			clientInfo: { name: "agentos-test", version: "0.0.1" },
 		});
-		return await run(connection);
+		return await run(connection, initialization);
 	} finally {
 		if (child.exitCode === null && child.signalCode === null) child.kill("SIGTERM");
 		await Promise.race([
@@ -177,6 +177,60 @@ test("Codex WASI consumes canonical message items without legacy duplication", (
 	assert.match(patch, /EventMsg::ItemCompleted/);
 	assert.match(patch, /MessagePhase::FinalAnswer/);
 	assert.doesNotMatch(patch, /^\+\s*EventMsg::AgentMessage\(/m);
+});
+
+test("Codex ACP rejects unsupported rich media instead of silently dropping it", async () => {
+	const codexHome = mkdtempSync(join(tmpdir(), "agentos-codex-media-"));
+	try {
+		await withAdapter(codexHome, async (connection, initialization) => {
+			assert.deepEqual(initialization.agentCapabilities.promptCapabilities, {
+				image: false,
+				audio: false,
+				embeddedContext: false,
+			});
+			const session = await connection.newSession({
+				cwd: packageDir,
+				mcpServers: [],
+			});
+			const unsupported = [
+				{
+					type: "image",
+					data: "iVBORw0KGgo=",
+					mimeType: "image/png",
+				},
+				{
+					type: "audio",
+					data: "UklGRg==",
+					mimeType: "audio/wav",
+				},
+				{
+					type: "resource",
+					resource: {
+						uri: "file:///workspace/context.txt",
+						mimeType: "text/plain",
+						text: "context",
+					},
+				},
+				{
+					type: "resource_link",
+					uri: "https://example.test/reference.txt",
+					name: "reference.txt",
+				},
+			];
+			for (const content of unsupported) {
+				await assert.rejects(
+					connection.prompt({
+						sessionId: session.sessionId,
+						prompt: [content],
+					}),
+					new RegExp(`${content.type} prompt content`),
+				);
+			}
+			await connection.closeSession({ sessionId: session.sessionId });
+		});
+	} finally {
+		rmSync(codexHome, { recursive: true, force: true });
+	}
 });
 
 test("Codex ACP resumes a session after its adapter process restarts", async () => {

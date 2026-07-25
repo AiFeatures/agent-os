@@ -22,6 +22,13 @@ import {
 	createVmWorkspace,
 	readVmText,
 } from "./helpers/opencode-helper.js";
+import {
+	ONE_PIXEL_PNG_BASE64,
+	ONE_PIXEL_PNG_BYTES,
+	requestContainsExactPng,
+	requestContainsExactPngToolResult,
+	startRawRequestCapture,
+} from "./helpers/rich-media.js";
 
 const MODULE_ACCESS_CWD = resolve(import.meta.dirname, "..");
 const ACP_TRACE_DIR = mkdtempSync(join(tmpdir(), "agentos-opencode-trace-"));
@@ -332,6 +339,102 @@ describe("OpenCode session API integration", () => {
 		}
 	}, 120_000);
 
+	test("preserves exact PNG media in OpenCode prompts and read results", async () => {
+		const fixtures: Fixture[] = [
+			createAnthropicFixture(
+				{ userMessage: /Inspect this direct PNG/ },
+				{ content: "Direct PNG received." },
+			),
+			createAnthropicFixture(
+				{ predicate: (request) => !hasAnyToolResult(request) },
+				{
+					toolCalls: [
+						{
+							name: "read",
+							arguments: JSON.stringify({
+								filePath: "/home/agentos/workspace/pixel.png",
+							}),
+						},
+					],
+				},
+			),
+			createAnthropicFixture(
+				{ predicate: hasAnyToolResult },
+				{ content: "PNG read successfully." },
+			),
+		];
+		const { mock, url } = await startLlmock(fixtures);
+		const capture = await startRawRequestCapture(url);
+		const vm = await createOpenCodeVm(capture.url);
+		const sessionId = "opencode-rich-media";
+		let sessionOpened = false;
+		let unsubscribe: (() => void) | undefined;
+		try {
+			const homeDir = await createVmOpenCodeHome(vm, capture.url);
+			const workspaceDir = await createVmWorkspace(vm);
+			await vm.writeFile(`${workspaceDir}/pixel.png`, ONE_PIXEL_PNG_BYTES);
+			await vm.openSession({
+				sessionId,
+				agent: "opencode",
+				cwd: workspaceDir,
+				env: {
+					HOME: homeDir,
+					ANTHROPIC_API_KEY: "mock-key",
+				},
+			});
+			sessionOpened = true;
+			const direct = await vm.prompt({
+				sessionId,
+				content: [
+					{ type: "text", text: "Inspect this direct PNG." },
+					{
+						type: "image",
+						data: ONE_PIXEL_PNG_BASE64,
+						mimeType: "image/png",
+					},
+					{
+						type: "resource",
+						resource: {
+							uri: "file:///workspace/context.txt",
+							mimeType: "text/plain",
+							text: "embedded context ✓",
+						},
+					},
+				],
+			});
+			expect(direct.stopReason).toBe("end_turn");
+			expect(capture.requests.some(requestContainsExactPng)).toBe(true);
+			expect(JSON.stringify(capture.requests)).toContain("embedded context ✓");
+
+			const events: unknown[] = [];
+			unsubscribe = vm.onSessionEvent(sessionId, (event) => {
+				events.push(event);
+			});
+			const result = await textPrompt(
+				vm,
+				sessionId,
+				"Read pixel.png and inspect the image.",
+			);
+			unsubscribe();
+			unsubscribe = undefined;
+
+			expect(result.stopReason).toBe("end_turn");
+			expect(capture.requests.some(requestContainsExactPngToolResult)).toBe(
+				true,
+			);
+			expect(JSON.stringify(capture.requests)).toContain(ONE_PIXEL_PNG_BASE64);
+			expect(events.some(requestContainsExactPng)).toBe(true);
+		} finally {
+			unsubscribe?.();
+			if (sessionOpened) {
+				await vm.unloadSession({ sessionId });
+			}
+			await vm.dispose();
+			await capture.stop();
+			await stopLlmock(mock);
+		}
+	}, 120_000);
+
 	test("runs the real OpenCode ACP flow end-to-end for write tool calls", async () => {
 		const fixtures = createToolFixtures(
 			{
@@ -403,9 +506,7 @@ describe("OpenCode session API integration", () => {
 			expect(mock.getRequests().length).toBeGreaterThanOrEqual(2);
 
 			expect(
-				events.some((event) =>
-					JSON.stringify(event).includes("tool_call"),
-				),
+				events.some((event) => JSON.stringify(event).includes("tool_call")),
 			).toBe(true);
 			expect(events.length).toBeGreaterThan(0);
 		} finally {

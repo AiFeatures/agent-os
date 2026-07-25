@@ -19,6 +19,13 @@ import {
 } from "./helpers/llmock-helper.js";
 import { moduleAccessMounts } from "./helpers/node-modules-mount.js";
 import { REGISTRY_SOFTWARE } from "./helpers/registry-commands.js";
+import {
+	ONE_PIXEL_PNG_BASE64,
+	ONE_PIXEL_PNG_BYTES,
+	requestContainsExactPng,
+	requestContainsExactPngToolResult,
+	startRawRequestCapture,
+} from "./helpers/rich-media.js";
 
 const MODULE_ACCESS_CWD = resolve(import.meta.dirname, "..");
 const XU_COMMAND = "sh -lc 'printf xu-ok:hello-agent-os'";
@@ -204,6 +211,110 @@ describe("full openSession({ agent: 'claude' })", () => {
 			if (sessionId) {
 				await vm.unloadSession({ sessionId });
 			}
+		}
+	}, 120_000);
+
+	test("preserves exact PNG media in Claude prompts and Read results", async () => {
+		const fixtures: Fixture[] = [
+			createAnthropicFixture(
+				{ userMessage: /Inspect this direct PNG/ },
+				{ content: "Direct PNG received." },
+			),
+			createAnthropicFixture(
+				{ predicate: (request) => !hasToolResult(request) },
+				{
+					toolCalls: [
+						{
+							name: "Read",
+							arguments: JSON.stringify({
+								file_path: "/home/agentos/pixel.png",
+							}),
+						},
+					],
+				},
+			),
+			createAnthropicFixture(
+				{ predicate: hasToolResult },
+				{ content: "Claude preserved the PNG." },
+			),
+		];
+		const { mock: mediaMock, url: mediaMockUrl } = await startLlmock(fixtures);
+		const capture = await startRawRequestCapture(mediaMockUrl);
+		const mediaVm = await AgentOs.create({
+			loopbackExemptPorts: [Number(new URL(capture.url).port)],
+			mounts: moduleAccessMounts(MODULE_ACCESS_CWD),
+			software: [claude, ...REGISTRY_SOFTWARE],
+		});
+		const sessionId = "claude-rich-media";
+		let sessionOpened = false;
+		let unsubscribe: (() => void) | undefined;
+		try {
+			await mediaVm.writeFile("/home/agentos/pixel.png", ONE_PIXEL_PNG_BYTES);
+			await mediaVm.openSession({
+				sessionId,
+				agent: "claude",
+				cwd: "/home/agentos",
+				permissionPolicy: "allow_all",
+				env: {
+					ANTHROPIC_API_KEY: "mock-key",
+					ANTHROPIC_BASE_URL: capture.url,
+				},
+			});
+			sessionOpened = true;
+			const direct = await mediaVm.prompt({
+				sessionId,
+				content: [
+					{ type: "text", text: "Inspect this direct PNG." },
+					{
+						type: "image",
+						data: ONE_PIXEL_PNG_BASE64,
+						mimeType: "image/png",
+					},
+					{
+						type: "resource",
+						resource: {
+							uri: "file:///workspace/context.txt",
+							mimeType: "text/plain",
+							text: "embedded context ✓",
+						},
+					},
+				],
+			});
+			expect(direct.stopReason).toBe("end_turn");
+			expect(capture.requests.some(requestContainsExactPng)).toBe(true);
+			expect(JSON.stringify(capture.requests)).toContain("embedded context ✓");
+
+			const capabilities = await mediaVm.getSessionCapabilities({ sessionId });
+			expect(capabilities?.prompt).toMatchObject({
+				embeddedContext: true,
+				image: true,
+			});
+			const events: unknown[] = [];
+			unsubscribe = mediaVm.onSessionEvent(sessionId, (event) => {
+				events.push(event);
+			});
+			const result = await textPrompt(
+				mediaVm,
+				sessionId,
+				"Read pixel.png and inspect the image.",
+			);
+			unsubscribe();
+			unsubscribe = undefined;
+
+			expect(result.stopReason).toBe("end_turn");
+			expect(capture.requests.some(requestContainsExactPngToolResult)).toBe(
+				true,
+			);
+			expect(JSON.stringify(capture.requests)).toContain(ONE_PIXEL_PNG_BASE64);
+			expect(events.some(requestContainsExactPng)).toBe(true);
+		} finally {
+			unsubscribe?.();
+			if (sessionOpened) {
+				await mediaVm.unloadSession({ sessionId });
+			}
+			await mediaVm.dispose();
+			await capture.stop();
+			await stopLlmock(mediaMock);
 		}
 	}, 120_000);
 
