@@ -232,6 +232,10 @@
       "title": "Flue",
       "description": "Use agentOS as the durable sandbox backend for Flue."
     },
+    "/docs/docs/frameworks/rivet": {
+      "title": "Rivet",
+      "description": "Run agentOS natively as Rivet Actors."
+    },
     "/docs/docs/frameworks/vercel-eve": {
       "title": "Vercel Eve",
       "description": "Run Vercel Eve with agentOS and Rivet World."

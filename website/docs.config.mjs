@@ -107,6 +107,11 @@ export const siteConfig = {
 							icon: faToolbox,
 							pages: [
 								{
+									title: "Rivet",
+									href: "/docs/frameworks/rivet",
+									icon: { src: "/images/frameworks/rivet.svg" },
+								},
+								{
 									title: "Vercel Eve",
 									href: "/docs/frameworks/vercel-eve",
 									badge: "Beta",

@@ -489,6 +489,7 @@ const agents: SupportedAgent[] = [
 const frameworks: SupportedAgent[] = [
 	{ src: '/images/frameworks/eve.svg', name: 'Eve', wordmark: true, href: '/docs/frameworks/vercel-eve' },
 	{ src: '/images/frameworks/flue.svg', name: 'Flue', href: '/docs/frameworks/flue' },
+	{ src: '/images/frameworks/rivet.svg', name: 'Rivet', href: '/docs/frameworks/rivet' },
 ];
 
 // Tab metadata for the orchestration code panel, leading with agents
@@ -1770,7 +1771,7 @@ const AgentCompatibilitySection = () => (
 			<Reveal>
 				<div className='mx-auto max-w-4xl text-center'>
 					<h2 className='text-balance text-3xl font-medium leading-[1.08] tracking-[-0.025em] text-ink md:text-5xl'>Bring any agent or framework.</h2>
-					<p className='mx-auto mt-5 max-w-3xl text-balance text-base leading-relaxed text-ink-soft md:text-lg'>Pi, Claude Code, Codex, and OpenCode on the same virtual operating system—with integrations for Eve and Flue.</p>
+					<p className='mx-auto mt-5 max-w-3xl text-balance text-base leading-relaxed text-ink-soft md:text-lg'>Pi, Claude Code, Codex, and OpenCode on the same virtual operating system—with native Rivet orchestration and integrations for Eve and Flue.</p>
 				</div>
 			</Reveal>
 
@@ -1808,13 +1809,11 @@ const AgentCompatibilitySection = () => (
 
 					<motion.div className='flex items-center pl-2' initial='rest' whileHover='spread' animate='rest'>
 						{frameworks.map((framework, i) => {
-							const tilt = [-10, 10][i] ?? 0;
+							const tilt = [-12, 0, 12][i] ?? 0;
 							return (
 								<motion.a
 									key={framework.name}
 									href={framework.href}
-									target='_blank'
-									rel='noopener noreferrer'
 									aria-label={framework.comingSoon ? `${framework.name} (coming soon)` : framework.name}
 									variants={{
 										rest: { rotate: tilt, marginLeft: i === 0 ? 0 : -10 },
