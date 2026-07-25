@@ -111,6 +111,12 @@ const customAlias = {
 		"polyfills",
 		"blob-file.ts",
 	),
+	"agentos-whatwg-url-polyfill": path.join(
+		packageRoot,
+		"bridge-src",
+		"polyfills",
+		"whatwg-url.ts",
+	),
 	"whatwg-url": require.resolve("whatwg-url"),
 	stream: path.join(undiciShimDir, "stream.js"),
 	"node:stream": path.join(undiciShimDir, "stream.js"),
@@ -433,15 +439,6 @@ async function buildWebStreamsPrelude() {
 				'if (typeof globalThis.TextDecoder === "undefined") {',
 				"  globalThis.TextDecoder = AgentOSTextDecoder;",
 				"}",
-				'if (typeof globalThis.SharedArrayBuffer === "undefined") {',
-				"  class SharedArrayBufferBootstrapStub {}",
-				'  Object.defineProperties(SharedArrayBufferBootstrapStub.prototype, {',
-				'    byteLength: { configurable: true, get() { if (!(this instanceof SharedArrayBufferBootstrapStub)) throw new TypeError("incompatible receiver"); return 0; } },',
-				'    growable: { configurable: true, get() { if (!(this instanceof SharedArrayBufferBootstrapStub)) throw new TypeError("incompatible receiver"); return false; } },',
-				"  });",
-				"  SharedArrayBufferBootstrapStub.__agentOSBootstrapStub = true;",
-				"  globalThis.SharedArrayBuffer = SharedArrayBufferBootstrapStub;",
-				"}",
 				'if (typeof globalThis.ReadableStream === "undefined") {',
 				"  globalThis.ReadableStream = ReadableStream;",
 				"}",
@@ -451,6 +448,8 @@ async function buildWebStreamsPrelude() {
 				'if (typeof globalThis.TransformStream === "undefined") {',
 				"  globalThis.TransformStream = TransformStream;",
 				"}",
+				"globalThis.Blob = AgentOSBlob;",
+				"globalThis.File = AgentOSFile;",
 				'if (typeof globalThis.URLSearchParams === "undefined") {',
 				"  globalThis.URLSearchParams = class URLSearchParamsStub {",
 				"    _entries = [];",
@@ -562,7 +561,6 @@ async function buildWebStreamsPrelude() {
 				"  };",
 				"  globalThis.URL.__secureExecBootstrapStub = true;",
 				"}",
-				"globalThis.Blob = AgentOSBlob;",
 				'if (typeof globalThis.AbortSignal === "undefined") {',
 				"  globalThis.AbortSignal = class AbortSignalStub {",
 				"    aborted = false;",
@@ -656,6 +654,7 @@ async function buildWebStreamsPrelude() {
 			js: [
 				'if(typeof globalThis.global==="undefined"){globalThis.global=globalThis;}',
 				'if(typeof globalThis.process==="undefined"){globalThis.process={env:{},argv:["node"],browser:false,version:"v22.0.0",versions:{node:"22.0.0"},nextTick(callback,...args){return Promise.resolve().then(()=>callback(...args));}};}',
+				'if(typeof globalThis.SharedArrayBuffer==="undefined"){class SharedArrayBufferBootstrapStub{}Object.defineProperties(SharedArrayBufferBootstrapStub.prototype,{byteLength:{configurable:true,get(){if(!(this instanceof SharedArrayBufferBootstrapStub))throw new TypeError("incompatible receiver");return 0;}},growable:{configurable:true,get(){if(!(this instanceof SharedArrayBufferBootstrapStub))throw new TypeError("incompatible receiver");return false;}}});SharedArrayBufferBootstrapStub.__agentOSBootstrapStub=true;globalThis.SharedArrayBuffer=SharedArrayBufferBootstrapStub;}',
 			].join(""),
 		},
 	});
@@ -663,6 +662,41 @@ async function buildWebStreamsPrelude() {
 		throw new Error(`Failed to build web streams prelude: ${preludeResult.errors[0].text}`);
 	}
 	return `${preludeResult.outputFiles[0].text}\n`;
+}
+
+async function buildUrlPrelude() {
+	const urlPreludeResult = await build({
+		stdin: {
+			contents: [
+				'import { installWhatwgUrlGlobals } from "agentos-whatwg-url-polyfill";',
+				"installWhatwgUrlGlobals(globalThis);",
+				'if (globalThis.SharedArrayBuffer?.__agentOSBootstrapStub === true) {',
+				"  delete globalThis.SharedArrayBuffer;",
+				"}",
+			].join("\n"),
+			resolveDir: bridgeAssetsDir,
+			sourcefile: "v8-bridge-url.entry.js",
+			loader: "js",
+		},
+		bundle: true,
+		write: false,
+		format: "iife",
+		platform: "browser",
+		target: "es2020",
+		minify: true,
+		alias,
+		plugins: createUndiciBuildPlugins(),
+		define: {
+			"process.env.NODE_ENV": '"production"',
+			global: "globalThis",
+		},
+	});
+	if (urlPreludeResult.errors.length > 0) {
+		throw new Error(
+			`Failed to build URL prelude: ${urlPreludeResult.errors[0].text}`,
+		);
+	}
+	return `${urlPreludeResult.outputFiles[0].text}\n`;
 }
 
 async function prependBundlePrelude(bundlePath, preludeSource) {
@@ -903,7 +937,11 @@ for (const [name, buildResult] of [
 }
 
 const webStreamsPrelude = await buildWebStreamsPrelude();
-await prependBundlePrelude(bridgeTempOutput, webStreamsPrelude);
+const urlPrelude = await buildUrlPrelude();
+await prependBundlePrelude(
+	bridgeTempOutput,
+	`${webStreamsPrelude}${urlPrelude}`,
+);
 await rewriteUndiciRuntimeFeaturesBundle(bridgeTempOutput, { required: true });
 await rewriteUnsupportedUtilTypesBundle(bridgeTempOutput, { required: true });
 await rewriteUndiciRuntimeFeaturesBundle(zlibBridgeTempOutput);

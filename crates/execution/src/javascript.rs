@@ -7565,6 +7565,7 @@ fn builtin_named_exports(module_name: &str) -> &'static [&'static str] {
             "SlowBuffer",
             "isAscii",
             "isUtf8",
+            "resolveObjectURL",
         ],
         "child_process" => &[
             "ChildProcess",

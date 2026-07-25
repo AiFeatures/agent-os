@@ -4063,6 +4063,7 @@ import {
 import {
   Blob as BufferBlob,
   File as BufferFile,
+  resolveObjectURL,
 } from "node:buffer";
 
 const readAll = async (stream) => {
@@ -4199,6 +4200,19 @@ const multipartRequest = new Request("https://example.com/upload", {
 });
 const multipartContentType = multipartRequest.headers.get("content-type");
 const multipartText = await multipartRequest.text();
+const blobUrl = URL.createObjectURL(richBlob);
+const resolvedBlob = resolveObjectURL(blobUrl);
+const fetchedBlobUrlResponse = await fetch(blobUrl);
+const fetchedBlobUrlBytes = Array.from(
+  new Uint8Array(await fetchedBlobUrlResponse.arrayBuffer()),
+);
+URL.revokeObjectURL(blobUrl);
+let revokedBlobUrlRejected = false;
+try {
+  await fetch(blobUrl);
+} catch {
+  revokedBlobUrlRejected = true;
+}
 
 console.log(JSON.stringify({
   bufferBlobShared: BufferBlob === Blob,
@@ -4231,6 +4245,13 @@ console.log(JSON.stringify({
   richFileName: richFile.name,
   richFileSize: richFile.size,
   richFileType: richFile.type,
+  resolvedBlobBytes: Array.from(new Uint8Array(await resolvedBlob.arrayBuffer())),
+  resolvedBlobType: resolvedBlob.type,
+  revokedBlobUrlRejected,
+  revokedBlobUrlResolvesUndefined: resolveObjectURL(blobUrl) === undefined,
+  fetchedBlobUrlBytes,
+  fetchedBlobUrlContentType:
+    fetchedBlobUrlResponse.headers.get("content-type"),
   responseBodyShared: new Response("ok").body instanceof ReadableStream,
   responseBlobBytes: Array.from(new Uint8Array(await responseBlob.arrayBuffer())),
   responseBlobInstance: responseBlob instanceof Blob,

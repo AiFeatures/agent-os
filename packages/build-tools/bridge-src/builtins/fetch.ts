@@ -2,6 +2,7 @@ import { getSecureExecUndiciDispatcher, undiciFetch } from "./undici.js";
 import { exposeCustomGlobal, exposeInstallCompatibleHardenedGlobal } from "../global-exposure.js";
 import { undiciFormDataModule, undiciHeadersModule, undiciRequestModule, undiciResponseModule } from "../prelude.js";
 import { isFlatHeaderList, onUpgradeSocketEnd } from "./http.js";
+import { resolveObjectURL } from "./whatwg-url.js";
 
 // npm 11 requests full registry metadata while resolving manifests. Large,
 // long-lived packages such as drizzle-orm can exceed 50 MiB even though their
@@ -108,6 +109,15 @@ async function fetch(input, options = {}) {
   normalizedOptions = normalizeFetchRequestInit(normalizedOptions);
   normalizedOptions = ensureFetchAcceptEncoding(normalizedOptions);
   const requestLabel = typeof resolvedInput === "string" ? resolvedInput : resolvedInput?.url ? String(resolvedInput.url) : String(resolvedInput);
+  if (requestLabel.startsWith("blob:nodedata:")) {
+    const blob = resolveObjectURL(requestLabel);
+    if (!(blob instanceof Blob)) {
+      throw new TypeError("fetch failed: Blob URL has been revoked or does not exist");
+    }
+    return new UndiciResponse(blob, {
+      headers: blob.type ? { "content-type": blob.type } : void 0
+    });
+  }
   const handleId = typeof _registerHandle === "function" ? `fetch:${++_fetchHandleCounter}` : null;
   if (handleId) {
     _registerHandle?.(handleId, `fetch ${requestLabel}`);

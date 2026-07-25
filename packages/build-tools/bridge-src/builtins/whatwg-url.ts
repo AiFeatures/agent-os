@@ -1,9 +1,3 @@
-import {
-	URL as UpstreamURL,
-	URLSearchParams as UpstreamURLSearchParams,
-} from "whatwg-url";
-import { Blob } from "./network.js";
-
 const kBlobUrlStore = /* @__PURE__ */ Symbol.for("secureExec.blobUrlStore");
 const kBlobUrlCounter = /* @__PURE__ */ Symbol.for("secureExec.blobUrlCounter");
 
@@ -18,66 +12,30 @@ function createMissingArgsError(message) {
 }
 
 function getBlobUrlStore() {
-	const globalRecord = globalThis;
-	const existing = globalRecord[kBlobUrlStore];
+	const existing = globalThis[kBlobUrlStore];
 	if (existing instanceof Map) {
 		return existing;
 	}
 	const store = /* @__PURE__ */ new Map();
-	globalRecord[kBlobUrlStore] = store;
+	globalThis[kBlobUrlStore] = store;
 	return store;
 }
 
 function nextBlobUrlId() {
-	const globalRecord = globalThis;
 	const nextId =
-		typeof globalRecord[kBlobUrlCounter] === "number"
-			? globalRecord[kBlobUrlCounter]
+		typeof globalThis[kBlobUrlCounter] === "number"
+			? globalThis[kBlobUrlCounter]
 			: 1;
-	globalRecord[kBlobUrlCounter] = nextId + 1;
+	globalThis[kBlobUrlCounter] = nextId + 1;
 	return nextId;
 }
 
-const URL2 = UpstreamURL;
-const URLSearchParams = UpstreamURLSearchParams;
-
-if (globalThis.SharedArrayBuffer?.__agentOSBootstrapStub === true) {
-	delete globalThis.SharedArrayBuffer;
+function resolveObjectURL(url) {
+	return typeof url === "string" ? getBlobUrlStore().get(url) : undefined;
 }
 
-Object.defineProperties(URL2, {
-	createObjectURL: {
-		value(obj) {
-			if (typeof Blob === "undefined" || !(obj instanceof Blob)) {
-				throw createNodeTypeError(
-					'The "obj" argument must be an instance of Blob. Received ' +
-						(obj === null ? "null" : typeof obj),
-					"ERR_INVALID_ARG_TYPE",
-				);
-			}
-			const id = `blob:nodedata:${nextBlobUrlId()}`;
-			getBlobUrlStore().set(id, obj);
-			return id;
-		},
-		writable: true,
-		configurable: true,
-		enumerable: true,
-	},
-	revokeObjectURL: {
-		value(...args) {
-			if (args.length < 1) {
-				throw createMissingArgsError('The "url" argument must be specified');
-			}
-			const [url] = args;
-			if (typeof url === "string") {
-				getBlobUrlStore().delete(url);
-			}
-		},
-		writable: true,
-		configurable: true,
-		enumerable: true,
-	},
-});
+const URL2 = globalThis.URL;
+const URLSearchParams = globalThis.URLSearchParams;
 
 function installWhatwgUrlGlobals(target = globalThis) {
 	Object.defineProperty(target, "URL", {
@@ -102,6 +60,7 @@ export {
 	kBlobUrlCounter,
 	kBlobUrlStore,
 	nextBlobUrlId,
+	resolveObjectURL,
 	URL2,
 	URLSearchParams,
 };

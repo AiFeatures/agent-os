@@ -39,7 +39,7 @@ import {
 } from "./timers.js";
 import { builtinV8Module } from "./v8.js";
 import { builtinVmModule } from "./vm.js";
-import { URL2, URLSearchParams } from "./whatwg-url.js";
+import { resolveObjectURL, URL2, URLSearchParams } from "./whatwg-url.js";
 
 // biome-ignore lint/complexity/noStaticOnlyClass: generated bridge consumers rely on this registry shape.
 class BuiltinModuleRegistry {
@@ -253,6 +253,11 @@ defineMissingModuleProperty(builtinBufferStdlibModule, "Blob", globalThis.Blob);
 defineMissingModuleProperty(builtinBufferStdlibModule, "File", globalThis.File);
 defineMissingModuleProperty(builtinBufferStdlibModule, "isAscii", bufferIsAscii);
 defineMissingModuleProperty(builtinBufferStdlibModule, "isUtf8", bufferIsUtf8);
+defineMissingModuleProperty(
+	builtinBufferStdlibModule,
+	"resolveObjectURL",
+	resolveObjectURL,
+);
 var builtinConstantsStdlibModule = cloneStdlibModule(constantsStdlibModuleNs);
 var builtinEventsStdlibModule = cloneStdlibModule(eventsStdlibModuleNs);
 var builtinEventsConstructor = null;
