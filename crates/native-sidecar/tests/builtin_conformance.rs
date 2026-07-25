@@ -3858,6 +3858,42 @@ const formatted = util.format("value:%s count:%d json:%j", "alpha", 7, { ok: tru
 const promisified = await util.promisify((value, callback) => callback(null, value.toUpperCase()))("beta");
 const encodedLength = new util.TextEncoder().encode("Grüße").length;
 const decodedText = new util.TextDecoder().decode(textBytes);
+const malformedSurrogateBytes = Array.from(new TextEncoder().encode("\ud800A"));
+const encodeIntoDestination = new Uint8Array(4);
+const encodeIntoResult = new TextEncoder().encodeInto(
+  "A\u{1f600}",
+  encodeIntoDestination,
+);
+const streamingDecoder = new TextDecoder();
+const streamingDecoded =
+  streamingDecoder.decode(new Uint8Array([0xe2, 0x82]), { stream: true }) +
+  streamingDecoder.decode(new Uint8Array([0xac]));
+const maximalSubpartDecoded = new TextDecoder().decode(
+  new Uint8Array([0xe1, 0x80, 0x41]),
+);
+const utf16BeDecoded = new TextDecoder("utf-16be").decode(
+  new Uint8Array([0xfe, 0xff, 0x00, 0x41]),
+);
+const utf16LeStreamDecoder = new TextDecoder("utf-16le");
+const utf16LeStreamDecoded =
+  utf16LeStreamDecoder.decode(new Uint8Array([0x3d, 0xd8, 0x00]), {
+    stream: true,
+  }) +
+  utf16LeStreamDecoder.decode(new Uint8Array([0xde]));
+let fatalDecodeCode = null;
+try {
+  new TextDecoder("utf-8", { fatal: true }).decode(
+    new Uint8Array([0xc0]),
+  );
+} catch (error) {
+  fatalDecodeCode = error?.code ?? null;
+}
+let unsupportedEncodingCode = null;
+try {
+  new TextDecoder("not-an-encoding");
+} catch (error) {
+  unsupportedEncodingCode = error?.code ?? null;
+}
 
 const deflated = zlib.deflateSync(Buffer.from("secure-exec", "utf8"));
 const inflated = zlib.inflateSync(deflated).toString("utf8");
@@ -3871,20 +3907,31 @@ console.log(JSON.stringify({
   decoded,
   decodedText,
   deflatedBase64: deflated.toString("base64"),
+  encodeIntoBytes: Array.from(encodeIntoDestination),
+  encodeIntoResult,
   encodedLength,
+  fatalDecodeCode,
   formatted,
   inflated,
   isArrayBufferView: util.types.isArrayBufferView(textBytes),
   isDateViaUtilTypes: utilTypes.isDate(new Date("2024-01-01T00:00:00Z")),
   isMapViaUtilTypes: utilTypes.isMap(new Map([["alpha", 1]])),
+  isTextDecoderShared: util.TextDecoder === TextDecoder,
+  isTextEncoderShared: util.TextEncoder === TextEncoder,
   isUint8ArrayViaUtilTypes: utilTypes.isUint8Array(textBytes),
+  malformedSurrogateBytes,
+  maximalSubpartDecoded,
   promisified,
   punycodeAscii: punycode.toASCII("mañana.com"),
   punycodeUnicode: punycode.toUnicode("xn--maana-pta.com"),
   querystringParsed: querystring.parse("a=1&b=x&b=y"),
   querystringStringified: querystring.stringify({ a: 1, b: ["x", "y"] }),
   rejectsCode,
+  streamingDecoded,
   throwsCode,
+  unsupportedEncodingCode,
+  utf16BeDecoded,
+  utf16LeStreamDecoded,
 }));
 "#,
     );

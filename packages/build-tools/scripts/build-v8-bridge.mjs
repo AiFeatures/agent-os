@@ -80,9 +80,15 @@ const undiciRuntimeFeaturesPath = require.resolve(
 );
 const nodeStdlibUrlPackageEntry = createRequire(stdLibBrowser.url).resolve("url/");
 const wsNodeEntry = require.resolve("ws");
+const exodusBytesRoot = path.dirname(
+	require.resolve("@exodus/bytes/encoding-lite.js"),
+);
 
 const alias = {};
 const customAlias = {
+	"@exodus/bytes/encoding-lite.js": require.resolve(
+		"@exodus/bytes/encoding-lite.js",
+	),
 	url: path.join(undiciShimDir, "url.js"),
 	"node:url": path.join(undiciShimDir, "url.js"),
 	"agentos-legacy-url-polyfill": nodeStdlibUrlPackageEntry,
@@ -696,6 +702,58 @@ async function prependBundlePrelude(bundlePath, preludeSource) {
 
 function createUndiciBuildPlugins() {
 	return [
+		{
+			name: "agentos-exodus-bytes-pure-js",
+			setup(build) {
+				build.onLoad(
+					{
+						filter:
+							/[\\/]@exodus[\\/]bytes[\\/]fallback[\\/]platform\.browser\.js$/,
+					},
+					async () => ({
+						contents: await readFile(
+							path.join(
+								exodusBytesRoot,
+								"fallback",
+								"platform.native.js",
+							),
+							"utf8",
+						),
+						loader: "js",
+						resolveDir: path.join(exodusBytesRoot, "fallback"),
+					}),
+				);
+				build.onLoad(
+					{
+						filter:
+							/[\\/]@exodus[\\/]bytes[\\/]fallback[\\/]utf8\.auto\.browser\.js$/,
+					},
+					async () => ({
+						contents: await readFile(
+							path.join(
+								exodusBytesRoot,
+								"fallback",
+								"utf8.auto.js",
+							),
+							"utf8",
+						),
+						loader: "js",
+						resolveDir: path.join(exodusBytesRoot, "fallback"),
+					}),
+				);
+				build.onLoad(
+					{ filter: /[\\/]@exodus[\\/]bytes[\\/]utf16\.browser\.js$/ },
+					async () => ({
+						contents: await readFile(
+							path.join(exodusBytesRoot, "utf16.native.js"),
+							"utf8",
+						),
+						loader: "js",
+						resolveDir: exodusBytesRoot,
+					}),
+				);
+			},
+		},
 		{
 			name: "secure-exec-undici-runtime-features-shim",
 			setup(build) {

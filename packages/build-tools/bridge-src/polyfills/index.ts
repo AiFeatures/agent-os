@@ -109,6 +109,6 @@ if (undiciWebidl?.converters?.AbortSignal) {
 }
 
 export { defineGlobal, TextEncoder2, TextDecoder, Event, CustomEvent, EventTarget, AbortSignal, AbortController, FallbackWritableStream, FallbackReadableStream, undiciWebidl };
-export { withCode, createEncodingNotSupportedError, createEncodingInvalidDataError, createInvalidDecodeInputError, trimAsciiWhitespace, normalizeEncodingLabel, toUint8Array, encodeUtf8ScalarValue, encodeUtf8, appendCodePoint, isContinuationByte, decodeUtf8, decodeUtf16, PatchedTextEncoder, PatchedTextDecoder } from "./text-encoding.js";
+export { withCode, createEncodingNotSupportedError, createEncodingInvalidDataError, createInvalidDecodeInputError, trimAsciiWhitespace, normalizeEncodingLabel, toUint8Array, PatchedTextEncoder, PatchedTextDecoder } from "./text-encoding.js";
 export { normalizeAddEventListenerOptions, normalizeRemoveEventListenerOptions, isAbortSignalLike, PatchedEvent, PatchedCustomEvent, PatchedEventTarget } from "./dom-events.js";
 export { ensureNamedConstructor, createAbortSignalReason, createAbortedSignal, normalizeAbortSignalTimeout } from "./abort.js";
