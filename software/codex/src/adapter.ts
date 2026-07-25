@@ -635,9 +635,17 @@ class CodexAgent implements Agent {
 				"session already has an active prompt",
 			);
 		}
-		const promptText = params.prompt
-			.map((part) => (part.type === "text" ? part.text : ""))
-			.join("");
+		const promptTextParts: string[] = [];
+		for (const part of params.prompt) {
+			if (part.type !== "text") {
+				throw RequestError.invalidParams(
+					{ contentType: part.type },
+					`Codex does not support ${part.type} prompt content`,
+				);
+			}
+			promptTextParts.push(part.text);
+		}
+		const promptText = promptTextParts.join("");
 		const active = new ActivePrompt(this.connection, session, promptText);
 		session.activePrompt = active;
 		try {
