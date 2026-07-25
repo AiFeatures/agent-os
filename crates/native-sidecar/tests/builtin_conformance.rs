@@ -72,6 +72,7 @@ const BUILTIN_CONFORMANCE_CASES: &[&str] = &[
     "url",
     "stdlib_polyfill",
     "web_streams",
+    "regexp",
     "extended_builtin_polyfills",
 ];
 
@@ -4276,6 +4277,38 @@ console.log(JSON.stringify({
     );
 }
 
+fn regexp_conformance_matches_host_node() {
+    assert_conformance(
+        "regexp",
+        r#"
+const rgiEmoji = new RegExp("^\\p{RGI_Emoji}$", "v");
+class DerivedRegExp extends RegExp {}
+const derived = new DerivedRegExp("^[a-z]$", "v");
+const asciiLetter = new RegExp("^[\\p{ASCII}&&\\p{Letter}]+$", "v");
+
+console.log(JSON.stringify({
+  asciiLetterMatches: asciiLetter.test("AgentOS"),
+  asciiLetterRejectsDigit: !asciiLetter.test("Agent0S"),
+  constructorLength: RegExp.length,
+  constructorName: RegExp.name,
+  derivedMatches: derived.test("a"),
+  derivedPrototype: Object.getPrototypeOf(derived) === DerivedRegExp.prototype,
+  hasCompatibilityWrapper: "__secureExecRgiEmojiCompat" in RegExp,
+  malformedZwjRejected: !rgiEmoji.test("👨‍"),
+  plainTextRejected: !rgiEmoji.test("hello"),
+  rgiCases: [
+    "⚽",
+    "👨🏾‍⚕️",
+    "🇧🇪",
+    "1️⃣",
+    "🏴\u{e0067}\u{e0062}\u{e0065}\u{e006e}\u{e0067}\u{e007f}",
+  ].map((value) => rgiEmoji.test(value)),
+  standaloneModifierRejected: !rgiEmoji.test("🏾"),
+}));
+"#,
+    );
+}
+
 fn extended_builtin_polyfills_work_in_guest_v8() {
     let result = run_guest_script(
         "extended-builtins",
@@ -4689,6 +4722,7 @@ fn run_named_case(case_name: &str) {
         "url" => url_conformance_matches_host_node(),
         "stdlib_polyfill" => stdlib_polyfill_conformance_matches_host_node(),
         "web_streams" => web_streams_conformance_matches_host_node(),
+        "regexp" => regexp_conformance_matches_host_node(),
         "extended_builtin_polyfills" => extended_builtin_polyfills_work_in_guest_v8(),
         other => panic!("unknown builtin conformance case: {other}"),
     }
