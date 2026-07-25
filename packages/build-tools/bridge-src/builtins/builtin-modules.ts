@@ -1,5 +1,6 @@
 import { exposeCustomGlobal } from "../global-exposure.js";
 import { TextDecoder } from "../polyfills/index.js";
+import upstreamUrlHelpersModule from "agentos-node-url-polyfill";
 import {
 	bufferStdlibModuleNs,
 	constantsStdlibModuleNs,
@@ -32,7 +33,7 @@ import {
 	createAccessDeniedBuiltinError,
 } from "./misc-stubs.js";
 import { builtinPerfHooksModule } from "./perf.js";
-import { fileURLToPath2, pathToFileURL2, process_default } from "./process.js";
+import { process_default } from "./process.js";
 import {
 	builtinAsyncHooksModule,
 	builtinTimersPromisesModule,
@@ -529,6 +530,60 @@ defineMissingModuleProperty(
 var builtinStringDecoderStdlibModule = cloneStdlibModule(
 	stringDecoderStdlibModuleNs,
 );
+const upstreamUrlStdlibModule = unwrapStdlibModule(upstreamUrlHelpersModule);
+
+function withNodeErrorCode(error, code) {
+	error.code = code;
+	return error;
+}
+
+function pathToFileURL2(filePath) {
+	if (typeof filePath !== "string") {
+		throw withNodeErrorCode(
+			new TypeError('The "path" argument must be of type string.'),
+			"ERR_INVALID_ARG_TYPE",
+		);
+	}
+	let resolved = builtinPathStdlibModule.posix.resolve(
+		process_default.cwd(),
+		filePath,
+	);
+	if (filePath.endsWith("/") && !resolved.endsWith("/")) {
+		resolved += "/";
+	}
+	return upstreamUrlStdlibModule.pathToFileURL(resolved);
+}
+
+function fileURLToPath2(input) {
+	if (!(input instanceof URL2) && typeof input !== "string") {
+		throw withNodeErrorCode(
+			new TypeError(
+				'The "path" argument must be of type string or an instance of URL.',
+			),
+			"ERR_INVALID_ARG_TYPE",
+		);
+	}
+	try {
+		return upstreamUrlStdlibModule.fileURLToPath(input);
+	} catch (error) {
+		const message = String(error?.message ?? error);
+		if (message.includes("scheme file")) {
+			throw withNodeErrorCode(error, "ERR_INVALID_URL_SCHEME");
+		}
+		if (message.includes("host must be") || message.includes("File URL host")) {
+			throw withNodeErrorCode(error, "ERR_INVALID_FILE_URL_HOST");
+		}
+		if (
+			message.includes("encoded /") ||
+			message.includes("encoded \\") ||
+			message.includes("must not include encoded")
+		) {
+			throw withNodeErrorCode(error, "ERR_INVALID_FILE_URL_PATH");
+		}
+		throw error;
+	}
+}
+
 var builtinUrlStdlibModule = cloneStdlibModule(urlStdlibModuleNs);
 var builtinUrlStdlibModuleInitialized = false;
 function ensureBuiltinUrlStdlibModule() {

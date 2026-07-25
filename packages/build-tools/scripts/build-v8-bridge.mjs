@@ -99,6 +99,7 @@ const customAlias = {
 	url: path.join(undiciShimDir, "url.js"),
 	"node:url": path.join(undiciShimDir, "url.js"),
 	"agentos-legacy-url-polyfill": nodeStdlibUrlPackageEntry,
+	"agentos-node-url-polyfill": stdLibBrowser.url,
 	"agentos-text-encoding-polyfill": path.join(
 		packageRoot,
 		"bridge-src",

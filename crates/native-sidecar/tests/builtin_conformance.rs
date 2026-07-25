@@ -3859,6 +3859,17 @@ const setSemantics = new URLSearchParamsCtor("a=1&b=2&a=3&a=4&c=5");
 setSemantics.set("a", "z");
 
 const parsed = urlModule.parse("https://example.com/a/b?x=1&y=two#frag", true);
+const describeFileUrlError = (callback) => {
+  try {
+    callback();
+    return null;
+  } catch (error) {
+    return { name: error.name, code: error.code ?? null };
+  }
+};
+const encodedFileUrl = urlModule.pathToFileURL("/tmp/a #?%/ü/");
+const decodedFilePath = urlModule.fileURLToPath(encodedFileUrl);
+const localhostFilePath = urlModule.fileURLToPath("file://localhost/tmp/a%20b");
 
 console.log(JSON.stringify({
   href: url.href,
@@ -3872,6 +3883,24 @@ console.log(JSON.stringify({
   setSearchParamsSize: setSemantics.size,
   fileRelativeHref: fileRelative.href,
   fileRelativeNoBaseHref: fileRelativeNoBase.href,
+  encodedFileUrl: encodedFileUrl.href,
+  decodedFilePath,
+  localhostFilePath,
+  encodedSlashError: describeFileUrlError(() =>
+    urlModule.fileURLToPath("file:///tmp/a%2Fb")
+  ),
+  invalidFileUrlHostError: describeFileUrlError(() =>
+    urlModule.fileURLToPath("file://example.com/tmp/a")
+  ),
+  invalidFileUrlTypeError: describeFileUrlError(() =>
+    urlModule.fileURLToPath({})
+  ),
+  invalidSchemeError: describeFileUrlError(() =>
+    urlModule.fileURLToPath("https://example.com/a")
+  ),
+  malformedPercentError: describeFileUrlError(() =>
+    urlModule.fileURLToPath("file:///tmp/%")
+  ),
   dataUrlHref: dataUrl.href,
   dataUrlProtocol: dataUrl.protocol,
   dataUrlPathname: dataUrl.pathname,

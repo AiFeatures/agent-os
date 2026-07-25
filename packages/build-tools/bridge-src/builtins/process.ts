@@ -1011,34 +1011,6 @@ Object.defineProperty(process2, Symbol.toStringTag, {
 
 var process_default = process2;
 
-function encodeFilePathSegment(value) {
-  return encodeURI(String(value)).replace(/#/g, "%23").replace(/\?/g, "%3F");
-}
-
-function pathToFileURL2(filePath) {
-  const normalized = builtinPathStdlibModule.posix.resolve(String(filePath || "/"));
-  const pathname = encodeFilePathSegment(normalized);
-  return new URL2(`file://${pathname.startsWith("/") ? pathname : `/${pathname}`}`);
-}
-
-function fileURLToPath2(input) {
-  const href = input instanceof URL2 ? input.href : String(input ?? "");
-  if (!href.startsWith("file:")) {
-    throw new TypeError("The URL must be of scheme file");
-  }
-  let pathname = href.slice("file:".length);
-  if (pathname.startsWith("//")) {
-    const authorityMatch = /^\/\/[^/]*(.*)$/.exec(pathname);
-    pathname = authorityMatch?.[1] || "/";
-  }
-  pathname = pathname.split(/[?#]/, 1)[0] || "/";
-  pathname = decodeURIComponent(pathname);
-  if (!pathname.startsWith("/")) {
-    pathname = `/${pathname}`;
-  }
-  return pathname;
-}
-
 class NodeGlobalWebSocket {
   static CONNECTING = 0;
   static OPEN = 1;
@@ -1245,4 +1217,4 @@ function setupGlobals() {
   }
   installSafeIntlFormatters(g);
 }
-export { ProcessExitError, _addListener, _createProcessKillError, _cwd, _deliverProcessSignal, _emit, _exitCode, _exited, _getStdinIsTTY, _ignoredSelfSignals, _isTrackedProcessSignalEventName, _listenerCountForEvent, _processKillErrnoByCode, _processListeners, _processMaxListeners, _processMaxListenersWarned, _processOnceListeners, _processStartTime, _processVersionsCache, _removeListener, _resolveSignal, _signalNamesByNumber, _signalNumbers, _syncAllGuestProcessSignalStates, _syncGuestProcessSignalState, _trackedProcessSignalEvents, _umask, applyProcessConfig, config2, defaultProcessMemoryUsage, defaultProcessResourceUsage, dispatchCustomEmitterListeners, encodeFilePathSegment, fileURLToPath2, getNowMs, hrtime, installProcessIpcBridge, isProcessExitError, normalizeAsyncError, pathToFileURL2, process2, processClockNow, process_default, readLiveProcessCpuUsage, readLiveProcessMemoryUsage, readLiveProcessResourceUsage, readLiveProcessVersions, readProcessConfig, routeAsyncCallbackError, scheduleAsyncRethrow, setupGlobals, signalDispatch };
+export { ProcessExitError, _addListener, _createProcessKillError, _cwd, _deliverProcessSignal, _emit, _exitCode, _exited, _getStdinIsTTY, _ignoredSelfSignals, _isTrackedProcessSignalEventName, _listenerCountForEvent, _processKillErrnoByCode, _processListeners, _processMaxListeners, _processMaxListenersWarned, _processOnceListeners, _processStartTime, _processVersionsCache, _removeListener, _resolveSignal, _signalNamesByNumber, _signalNumbers, _syncAllGuestProcessSignalStates, _syncGuestProcessSignalState, _trackedProcessSignalEvents, _umask, applyProcessConfig, config2, defaultProcessMemoryUsage, defaultProcessResourceUsage, dispatchCustomEmitterListeners, getNowMs, hrtime, installProcessIpcBridge, isProcessExitError, normalizeAsyncError, process2, processClockNow, process_default, readLiveProcessCpuUsage, readLiveProcessMemoryUsage, readLiveProcessResourceUsage, readLiveProcessVersions, readProcessConfig, routeAsyncCallbackError, scheduleAsyncRethrow, setupGlobals, signalDispatch };
